@@ -3,6 +3,7 @@ import time
 import ctypes, sys
 import socket
 import requests
+import psutil
 
 # ==========================================
 # CONFIGURATION
@@ -34,17 +35,23 @@ def get_policy():
 
 def send_report(status, message):
     try:
+        # Lấy thông số phần cứng
+        metrics = get_system_metrics()
+        
         payload = {
             "hostname": socket.gethostname(),
             "os": "Windows",
             "status": status,
-            "message": message
+            "message": message,
+            "cpu": metrics["cpu"],      # <--- NEW DATA
+            "ram": metrics["ram"],      # <--- NEW DATA
+            "disk": metrics["disk"]     # <--- NEW DATA
         }
         headers = {"X-Api-Key": API_SECRET_KEY}
         requests.post(f"{SERVER_URL}/api/report", json=payload, headers=headers, timeout=2)
-        print("   -> [REPORT] Sent successfully.")
-    except:
-        print("   -> [REPORT] Failed to send.")
+        print(f"   -> [REPORT] Sent. CPU: {metrics['cpu']}% | RAM: {metrics['ram']}%")
+    except Exception as e:
+        print(f"   -> [REPORT] Failed to send: {e}")
 
 def check_service(service_name):
     try:
@@ -83,7 +90,15 @@ def run_agent_job():
         
         # Tự sửa lỗi
         fix_drift(target_service)
-
+def get_system_metrics():
+    """Get CPU, RAM, Disk usage"""
+    try:
+        cpu = psutil.cpu_percent(interval=1)
+        ram = psutil.virtual_memory().percent
+        disk = psutil.disk_usage('C:\\').percent
+        return {"cpu": cpu, "ram": ram, "disk": disk}
+    except:
+        return {"cpu": 0, "ram": 0, "disk": 0}
 if __name__ == "__main__":
     print(f"Windows Agent (Smart Mode) starting...")
     while True:
