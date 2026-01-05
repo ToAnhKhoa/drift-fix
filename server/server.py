@@ -54,7 +54,10 @@ def receive_report():
         "status": status,
         "os": data.get('os'),
         "last_seen": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "message": data.get('message')
+        "message": data.get('message'),
+        "cpu": data.get('cpu', 0),   
+        "ram": data.get('ram', 0),    
+        "disk": data.get('disk', 0)   
     }
     
     # Log to console (English)

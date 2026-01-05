@@ -38,15 +38,15 @@
                 <div class="card-body p-0">
                     <table class="table table-striped table-hover mb-0">
                         <thead class="table-dark">
-                            <tr>
-                                <th>Hostname</th>
-                                <th>IP Address</th>
-                                <th>OS</th>
-                                <th>Status</th>
-                                <th>Last Message</th>
-                                <th>Last Seen</th>
-                            </tr>
-                        </thead>
+    <tr>
+        <th>Hostname</th>
+        <th>IP Address</th>
+        <th>OS</th>
+        <th>CPU</th>    <th>RAM</th>    <th>Disk</th>   <th>Status</th>
+        <th>Last Message</th>
+        <th>Last Seen</th>
+    </tr>
+</thead>
                         <tbody id="agent-table-body">
                             </tbody>
                     </table>
@@ -74,16 +74,25 @@
                     // Chọn màu sắc: Xanh (SAFE) hoặc Đỏ (DRIFT)
                     let badgeClass = info.status === 'SAFE' ? 'bg-success' : 'bg-danger';
                     
-                    const row = `
+                   const row = `
                         <tr>
                             <td class="fw-bold">${hostname}</td>
                             <td>${info.ip}</td>
+                            <td><span class="badge bg-secondary">${info.os}</span></td>
+                            
                             <td>
-                                <span class="badge bg-secondary">${info.os}</span>
+                                <div class="progress" style="height: 20px;">
+                                    <div class="progress-bar bg-info" role="progressbar" style="width: ${info.cpu}%">${info.cpu}%</div>
+                                </div>
                             </td>
                             <td>
-                                <span class="badge ${badgeClass} status-badge">${info.status}</span>
+                                <div class="progress" style="height: 20px;">
+                                    <div class="progress-bar bg-warning text-dark" role="progressbar" style="width: ${info.ram}%">${info.ram}%</div>
+                                </div>
                             </td>
+                            <td>${info.disk}%</td>
+
+                            <td><span class="badge ${badgeClass} status-badge">${info.status}</span></td>
                             <td class="text-muted small">${info.message}</td>
                             <td class="small">${info.last_seen}</td>
                         </tr>
