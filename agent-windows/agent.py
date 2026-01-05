@@ -1,25 +1,53 @@
 import subprocess
 import time
 import ctypes, sys
+import socket
+import requests 
 
 # ==========================================
-# WINDOWS AGENT - AUTO REMEDIATION
+# CONFIGURATION
 # ==========================================
-
 SERVICE_NAME = "Spooler"
 DESIRED_STATE = "STOPPED"
+SERVER_API_URL = "http://10.0.0.10:5000/api/report"
+API_SECRET_KEY = "prethesis"
 
 def is_admin():
-    """Kiểm tra xem Python có đang chạy với quyền Admin không"""
     try:
         return ctypes.windll.shell32.IsUserAnAdmin()
     except:
         return False
 
+# Tự động nâng quyền Admin nếu chưa có
+if not is_admin():
+    print("Dang yeu cau quyen Admin...")
+    ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, " ".join(sys.argv), None, 1)
+    sys.exit()
+
+def send_report_to_server(status, message):
+    """Gửi báo cáo về Master Server"""
+    try:
+        payload = {
+            "hostname": socket.gethostname(),
+            "ip": socket.gethostbyname(socket.gethostname()),
+            "os": "Windows",
+            "status": status, # "SAFE" hoặc "DRIFT"
+            "message": message
+        }
+        headers = {"X-Api-Key": API_SECRET_KEY}
+        
+        # Gửi request POST
+        response = requests.post(SERVER_API_URL, json=payload, headers=headers, timeout=2)
+        if response.status_code == 200:
+            print("   -> [REPORT] Da gui bao cao ve Server thanh cong.")
+        else:
+            print(f"   -> [REPORT] Loi Server: {response.status_code}")
+    except Exception as e:
+        print(f"   -> [REPORT] Khong ket noi duoc Server: {e}")
+
 def check_service_status(service_name):
     try:
         cmd = ["sc", "query", service_name]
-        # Dùng shell=True để giấu cửa sổ đen pop-up
         result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
         if "RUNNING" in result.stdout:
             return "RUNNING"
@@ -31,45 +59,38 @@ def check_service_status(service_name):
         return "ERROR"
 
 def fix_drift(service_name):
-    """Hàm thực thi hành động sửa lỗi"""
-    print(f"   🚑 ACTION: Đang kích hoạt quy trình sửa lỗi cho {service_name}...")
+    print(f"   [ACTION] Dang tat dich vu {service_name}...")
     try:
-        # Lệnh net stop sẽ đợi dịch vụ tắt hẳn mới xong (tốt hơn sc stop)
         cmd = f"net stop {service_name}"
         subprocess.run(cmd, shell=True, check=True, capture_output=True)
-        print(f"   -> ✅ Đã gửi lệnh tắt dịch vụ thành công!")
-    except subprocess.CalledProcessError:
-        print(f"   -> ❌ Thất bại! Bạn có đang chạy với quyền Administrator không?")
+        print(f"   -> Thanh cong!")
+        return True
+    except:
+        print(f"   -> That bai!")
+        return False
 
 def run_agent_job():
-    print(f"\n🔍 [CHECK] Kiểm tra dịch vụ: {SERVICE_NAME}...")
+    print(f"\n[CHECK] Kiem tra dich vu: {SERVICE_NAME}...")
     current_state = check_service_status(SERVICE_NAME)
     
     if current_state == DESIRED_STATE:
-        print(f"   -> ✅ OK: Hệ thống ổn định ({current_state}).")
+        print(f"   -> OK: Trang thai dung ({current_state}).")
+        # Gửi báo cáo Xanh
+        send_report_to_server("SAFE", f"Service {SERVICE_NAME} is {current_state}")
     else:
-        print(f"   -> ⚠️ DRIFT: Phát hiện lệch cấu hình! (Đang: {current_state} | Cần: {DESIRED_STATE})")
+        print(f"   -> DRIFT: Phat hien loi! (Dang: {current_state})")
+        # Gửi báo cáo Đỏ
+        send_report_to_server("DRIFT", f"Service {SERVICE_NAME} is {current_state}")
         
-        # GỌI HÀM SỬA LỖI NGAY LẬP TỨC
-        fix_drift(SERVICE_NAME)
-        
-        # Kiểm tra lại ngay sau khi sửa
-        time.sleep(2)
-        final_state = check_service_status(SERVICE_NAME)
-        if final_state == DESIRED_STATE:
-            print(f"   -> 🎉 REMEDIATION SUCCESS: Đã tự động sửa lỗi thành công!")
-        else:
-            print(f"   -> 💀 REMEDIATION FAILED: Vẫn chưa sửa được.")
+        # Sửa lỗi
+        if fix_drift(SERVICE_NAME):
+            # Kiểm tra lại
+            time.sleep(2)
+            if check_service_status(SERVICE_NAME) == DESIRED_STATE:
+                send_report_to_server("SAFE", "Auto-remediation success")
 
 if __name__ == "__main__":
-    if not is_admin():
-        print("❌ CẢNH BÁO: Bạn chưa chạy script với quyền Admin (Run as Administrator).")
-        print("   Agent sẽ không thể tắt dịch vụ được!")
-        print("   -> Hãy tắt VS Code và mở lại bằng chuột phải -> 'Run as administrator'.")
-        input("\nBấm Enter để thoát...")
-    else:
-        print("🛡️ AGENT ĐANG CHẠY (ADMIN MODE)... Bấm Ctrl+C để dừng.")
-        while True:
-            run_agent_job()
-            print("zzz... Chờ 5 giây...")
-            time.sleep(5)
+    print(f"Khoi dong Agent ket noi toi {SERVER_API_URL}...")
+    while True:
+        run_agent_job()
+        time.sleep(10) # 10 giây báo cáo 1 lần

@@ -2,30 +2,20 @@ from flask import Flask, request, jsonify
 from datetime import datetime
 
 app = Flask(__name__)
-
-# ==========================================
 # CẤU HÌNH BẢO MẬT & DATABASE GIẢ LẬP
-# ==========================================
-# Khóa bí mật (Shared Secret) - Phải khớp với Agent sau này
-API_SECRET_KEY = "do-an-tot-nghiep-2024"
+API_SECRET_KEY = "prethesis"
 
 # Database tạm thời (Lưu trong RAM, tắt server là mất - sẽ nâng cấp lên SQLite sau)
 # Cấu trúc: { "hostname": { "ip": "...", "status": "...", "last_seen": "..." } }
 device_inventory = {}
-
-# ==========================================
 # CÁC HÀM HỖ TRỢ (HELPER)
-# ==========================================
 def check_auth(req):
     """Kiểm tra xem Agent có gửi đúng Key không"""
     token = req.headers.get('X-Api-Key')
     if token == API_SECRET_KEY:
         return True
     return False
-
-# ==========================================
 # API ENDPOINTS
-# ==========================================
 
 @app.route('/')
 def home():

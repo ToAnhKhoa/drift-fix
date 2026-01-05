@@ -1,49 +1,59 @@
 import os
 import time
 import socket
+import requests
 
 # ==========================================
-# LINUX AGENT - FILE INTEGRITY MONITOR
+# CONFIGURATION
 # ==========================================
-
-# Cấu hình file cấm (Giả lập file rác hoặc malware)
 PROHIBITED_FILE = "/tmp/virus.txt"
+SERVER_API_URL = "http://10.0.0.10:5000/api/report"
+API_SECRET_KEY = "prethesis"
+
+def send_report_to_server(status, message):
+    try:
+        payload = {
+            "hostname": socket.gethostname(),
+            "os": "Linux",
+            "status": status,
+            "message": message
+        }
+        headers = {"X-Api-Key": API_SECRET_KEY}
+        requests.post(SERVER_API_URL, json=payload, headers=headers, timeout=2)
+        print("   -> [REPORT] Da gui bao cao ve Server.")
+    except Exception as e:
+        print(f"   -> [REPORT] Loi ket noi Server: {e}")
 
 def check_file_drift():
-    """Kiểm tra xem file cấm có tồn tại không"""
     if os.path.exists(PROHIBITED_FILE):
-        return "DRIFT" # Phát hiện lỗi
+        return "DRIFT"
     else:
-        return "SAFE"  # An toàn
+        return "SAFE"
 
 def fix_drift():
-    """Hành động sửa lỗi: Xóa file cấm"""
-    print(f"   [ACTION] Phat hien file cam: {PROHIBITED_FILE}. Dang xoa...")
+    print(f"   [ACTION] Xoa file cam: {PROHIBITED_FILE}...")
     try:
         os.remove(PROHIBITED_FILE)
-        print("   -> Da xoa file thanh cong.")
         return True
-    except OSError as e:
-        print(f"   -> Loi: Khong the xoa file. {e}")
+    except:
         return False
 
 def run_agent_job():
-    print(f"\n[CHECK] Kiem tra su ton tai cua file: {PROHIBITED_FILE}...")
+    print(f"\n[CHECK] Kiem tra file: {PROHIBITED_FILE}...")
     status = check_file_drift()
     
     if status == "SAFE":
-        print("   -> OK: He thong sach se.")
+        print("   -> OK: He thong sach.")
+        send_report_to_server("SAFE", "System Clean")
     else:
-        print("   -> CANH BAO: Phat hien file vi pham chinh sach!")
-        # Kích hoạt tự động sửa lỗi
-        fix_drift()
+        print("   -> CANH BAO: Phat hien file cam!")
+        send_report_to_server("DRIFT", f"Found prohibited file: {PROHIBITED_FILE}")
+        
+        if fix_drift():
+            send_report_to_server("SAFE", "Auto-remediation: File deleted")
 
 if __name__ == "__main__":
-    # Lấy thông tin máy để hiển thị
-    hostname = socket.gethostname()
-    print(f"Khoi dong Linux Agent tren {hostname}...")
-    print("Nhan Ctrl+C de dung chuong trinh.\n")
-
+    print(f"Linux Agent start... Target: {SERVER_API_URL}")
     while True:
         run_agent_job()
-        time.sleep(5) # Chạy chu kỳ 5 giây/lần
+        time.sleep(10)
