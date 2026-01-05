@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Infrastructure Monitor | Thesis Demo</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .card { box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .status-badge { font-weight: bold; padding: 0.5em 1em; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark bg-dark mb-4">
+    <div class="container">
+        <span class="navbar-brand mb-0 h1">🛡️ Config Management System (Drift Detection)</span>
+    </div>
+</nav>
+
+<div class="container">
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <div class="card text-white bg-primary mb-3">
+                <div class="card-header">Managed Nodes</div>
+                <div class="card-body">
+                    <h1 class="card-title text-center" id="total-nodes">0</h1>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-white font-weight-bold">
+                    Live Status Log
+                    <span class="float-end badge bg-secondary">Auto-refresh: ON</span>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-striped table-hover mb-0">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Hostname</th>
+                                <th>IP Address</th>
+                                <th>OS</th>
+                                <th>Status</th>
+                                <th>Last Message</th>
+                                <th>Last Seen</th>
+                            </tr>
+                        </thead>
+                        <tbody id="agent-table-body">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function updateDashboard() {
+        fetch('/api/inventory')
+            .then(response => response.json())
+            .then(data => {
+                const tableBody = document.getElementById('agent-table-body');
+                const totalNodes = document.getElementById('total-nodes');
+                
+                tableBody.innerHTML = ''; // Xóa bảng cũ
+                let count = 0;
+
+                // Duyệt qua từng máy trong danh sách
+                for (const [hostname, info] of Object.entries(data)) {
+                    count++;
+                    
+                    // Chọn màu sắc: Xanh (SAFE) hoặc Đỏ (DRIFT)
+                    let badgeClass = info.status === 'SAFE' ? 'bg-success' : 'bg-danger';
+                    
+                    const row = `
+                        <tr>
+                            <td class="fw-bold">${hostname}</td>
+                            <td>${info.ip}</td>
+                            <td>
+                                <span class="badge bg-secondary">${info.os}</span>
+                            </td>
+                            <td>
+                                <span class="badge ${badgeClass} status-badge">${info.status}</span>
+                            </td>
+                            <td class="text-muted small">${info.message}</td>
+                            <td class="small">${info.last_seen}</td>
+                        </tr>
+                    `;
+                    tableBody.innerHTML += row;
+                }
+                totalNodes.innerText = count;
+            })
+            .catch(error => console.error('Error fetching data:', error));
+    }
+
+    // Chạy hàm cập nhật ngay khi mở web
+    updateDashboard();
+    // Sau đó cứ 2 giây chạy lại 1 lần
+    setInterval(updateDashboard, 2000);
+</script>
+
+</body>
+</html>

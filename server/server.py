@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from datetime import datetime
 
 app = Flask(__name__)
@@ -31,8 +31,8 @@ def check_auth(req):
 
 @app.route('/')
 def home():
-    return "<h1>MASTER SERVER IS ONLINE 🚀</h1><p>Ready to receive reports.</p>"
-
+    """Dashboard Interface"""
+    return render_template('index.html')
 @app.route('/api/policy', methods=['GET'])
 def get_policy():
     """API provide policy to Agents"""
