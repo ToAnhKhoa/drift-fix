@@ -5,9 +5,19 @@ app = Flask(__name__)
 # CẤU HÌNH BẢO MẬT & DATABASE GIẢ LẬP
 API_SECRET_KEY = "prethesis"
 
-# Database tạm thời (Lưu trong RAM, tắt server là mất - sẽ nâng cấp lên SQLite sau)
+# Database tạm thời
 # Cấu trúc: { "hostname": { "ip": "...", "status": "...", "last_seen": "..." } }
 device_inventory = {}
+# CENTRALIZED POLICY (Luật tập trung)
+current_policy = {
+    "windows": {
+        "service_name": "Spooler",  
+        "desired_state": "STOPPED"
+    },
+    "linux": {
+        "prohibited_file": "/tmp/virus.txt" 
+    }
+}
 # CÁC HÀM HỖ TRỢ (HELPER)
 def check_auth(req):
     """Kiểm tra xem Agent có gửi đúng Key không"""
@@ -49,7 +59,10 @@ def receive_report():
 def get_inventory():
     """API xem danh sách thiết bị (Dùng cho Dashboard sau này)"""
     return jsonify(device_inventory)
-
+@app.route('/api/policy', methods=['GET'])
+def get_policy():
+    """API để Agent tải cấu hình về"""
+    return jsonify(current_policy)
 if __name__ == '__main__':
     # Chạy server trên tất cả các IP (0.0.0.0) ở port 5000
     print(f"[*] Server dang khoi dong... API Key: {API_SECRET_KEY}")
