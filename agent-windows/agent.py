@@ -1,51 +1,75 @@
-import socket
+import subprocess
+import time
+import ctypes, sys
 
-def get_all_ips():
-    print("\n" + "="*40)
-    print("  DANH SÁCH IP TRÊN MÁY NÀY")
-    print("="*40)
+# ==========================================
+# WINDOWS AGENT - AUTO REMEDIATION
+# ==========================================
 
-    # 1: Thử kết nối ra Internet 
+SERVICE_NAME = "Spooler"
+DESIRED_STATE = "STOPPED"
+
+def is_admin():
+    """Kiểm tra xem Python có đang chạy với quyền Admin không"""
     try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        print(f" IP Internet (NAT):  {s.getsockname()[0]}")
-        s.close()
+        return ctypes.windll.shell32.IsUserAnAdmin()
     except:
-        pass
+        return False
 
-    # 2: Thử kết nối vào mạng LAB 
+def check_service_status(service_name):
     try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("10.0.0.10", 80)) 
-        ip_lab = s.getsockname()[0]
-        print(f" IP Mạng Lab (LAN):  {ip_lab}")
-        
-        if ip_lab == "10.0.0.30":
-            print("   ->  OK! Đúng IP cần tìm.")
+        cmd = ["sc", "query", service_name]
+        # Dùng shell=True để giấu cửa sổ đen pop-up
+        result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
+        if "RUNNING" in result.stdout:
+            return "RUNNING"
+        elif "STOPPED" in result.stdout:
+            return "STOPPED"
         else:
-            print("   ->  Sai IP Lab, kiểm tra lại cài đặt mạng.")
-            
-    except Exception as e:
-        print(f" Không tìm thấy mạng Lab: {e}")
-
-    # 3: Liệt kê thủ công
-    print("-" * 20)
-    print("Chi tiết các card mạng:")
-    hostname = socket.gethostname()
-    try:
-        # Lấy tất cả IP gắn với hostname
-        addr_info = socket.getaddrinfo(hostname, None)
-        seen_ips = set()
-        for info in addr_info:
-            ip = info[4][0]
-            if ip not in seen_ips and ":" not in ip: # Chỉ lấy IPv4
-                print(f" - {ip}")
-                seen_ips.add(ip)
+            return "UNKNOWN"
     except:
-        print("Không liệt kê được chi tiết.")
+        return "ERROR"
 
-    print("="*40 + "\n")
+def fix_drift(service_name):
+    """Hàm thực thi hành động sửa lỗi"""
+    print(f"   🚑 ACTION: Đang kích hoạt quy trình sửa lỗi cho {service_name}...")
+    try:
+        # Lệnh net stop sẽ đợi dịch vụ tắt hẳn mới xong (tốt hơn sc stop)
+        cmd = f"net stop {service_name}"
+        subprocess.run(cmd, shell=True, check=True, capture_output=True)
+        print(f"   -> ✅ Đã gửi lệnh tắt dịch vụ thành công!")
+    except subprocess.CalledProcessError:
+        print(f"   -> ❌ Thất bại! Bạn có đang chạy với quyền Administrator không?")
+
+def run_agent_job():
+    print(f"\n🔍 [CHECK] Kiểm tra dịch vụ: {SERVICE_NAME}...")
+    current_state = check_service_status(SERVICE_NAME)
+    
+    if current_state == DESIRED_STATE:
+        print(f"   -> ✅ OK: Hệ thống ổn định ({current_state}).")
+    else:
+        print(f"   -> ⚠️ DRIFT: Phát hiện lệch cấu hình! (Đang: {current_state} | Cần: {DESIRED_STATE})")
+        
+        # GỌI HÀM SỬA LỖI NGAY LẬP TỨC
+        fix_drift(SERVICE_NAME)
+        
+        # Kiểm tra lại ngay sau khi sửa
+        time.sleep(2)
+        final_state = check_service_status(SERVICE_NAME)
+        if final_state == DESIRED_STATE:
+            print(f"   -> 🎉 REMEDIATION SUCCESS: Đã tự động sửa lỗi thành công!")
+        else:
+            print(f"   -> 💀 REMEDIATION FAILED: Vẫn chưa sửa được.")
 
 if __name__ == "__main__":
-    get_all_ips()
+    if not is_admin():
+        print("❌ CẢNH BÁO: Bạn chưa chạy script với quyền Admin (Run as Administrator).")
+        print("   Agent sẽ không thể tắt dịch vụ được!")
+        print("   -> Hãy tắt VS Code và mở lại bằng chuột phải -> 'Run as administrator'.")
+        input("\nBấm Enter để thoát...")
+    else:
+        print("🛡️ AGENT ĐANG CHẠY (ADMIN MODE)... Bấm Ctrl+C để dừng.")
+        while True:
+            run_agent_job()
+            print("zzz... Chờ 5 giây...")
+            time.sleep(5)
