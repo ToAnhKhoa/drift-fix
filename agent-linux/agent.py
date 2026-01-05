@@ -11,7 +11,7 @@ def get_policy():
         response = requests.get(f"{SERVER_URL}/api/policy", timeout=2)
         if response.status_code == 200:
             data = response.json()
-            return data.get("linux") # Lấy phần cấu hình cho Linux
+            return data.get("linux")
     except:
         return None
     return None
@@ -26,38 +26,38 @@ def send_report(status, message):
         }
         headers = {"X-Api-Key": API_SECRET_KEY}
         requests.post(f"{SERVER_URL}/api/report", json=payload, headers=headers, timeout=2)
-        print("   -> [REPORT] Da gui bao cao.")
+        print("   -> [REPORT] Sent successfully.")
     except:
-        pass
+        print("   -> [REPORT] Failed to send.")
 
 def run_agent_job():
-    print(f"\n[SYNC] Dang tai Policy tu Server...")
+    print(f"\n[SYNC] Pulling Policy from Server...")
     policy = get_policy()
     
     if not policy:
-        print("   -> Loi ket noi. Dung mac dinh.")
+        print("   -> Connection failed. Using fallback.")
         target_file = "/tmp/virus.txt"
     else:
         target_file = policy["prohibited_file"]
-        print(f"   -> Policy: Cam file '{target_file}'")
+        print(f"   -> Policy: Prohibited file '{target_file}'")
 
-    # Kiểm tra và Xử lý
     if os.path.exists(target_file):
-        print("   -> CANH BAO: Phat hien file cam!")
-        send_report("DRIFT", f"Found file {target_file}")
+        print("   -> WARNING: Violation Detected!")
+        send_report("DRIFT", f"Found prohibited file: {target_file}")
         
-        print("   [ACTION] Dang xoa file...")
+        print("   [ACTION] Deleting file...")
         try:
             os.remove(target_file)
+            print("   -> File deleted.")
             send_report("SAFE", "Auto-remediation success")
         except:
-            pass
+            print("   -> Failed to delete.")
     else:
-        print("   -> OK: He thong sach.")
+        print("   -> OK: System Clean.")
         send_report("SAFE", "System Clean")
 
 if __name__ == "__main__":
-    print("Linux Agent (Smart Mode) khoi dong...")
+    print("Linux Agent (Smart Mode) starting...")
     while True:
         run_agent_job()
         time.sleep(10)

@@ -16,17 +16,18 @@ def is_admin():
     except:
         return False
 
+# Yêu cầu quyền Admin (giữ logic cũ)
 if not is_admin():
     ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, " ".join(sys.argv), None, 1)
     sys.exit()
 
 def get_policy():
-    """Tải cấu hình từ Server"""
+    """Pull policy from Server"""
     try:
         response = requests.get(f"{SERVER_URL}/api/policy", timeout=2)
         if response.status_code == 200:
             data = response.json()
-            return data.get("windows") # Lấy phần cấu hình cho Windows
+            return data.get("windows")
     except:
         return None
     return None
@@ -41,9 +42,9 @@ def send_report(status, message):
         }
         headers = {"X-Api-Key": API_SECRET_KEY}
         requests.post(f"{SERVER_URL}/api/report", json=payload, headers=headers, timeout=2)
-        print("   -> [REPORT] Da gui bao cao.")
+        print("   -> [REPORT] Sent successfully.")
     except:
-        pass
+        print("   -> [REPORT] Failed to send.")
 
 def check_service(service_name):
     try:
@@ -55,39 +56,36 @@ def check_service(service_name):
     except: return "ERROR"
 
 def fix_drift(service_name):
-    print(f"   [ACTION] Dang tat dich vu {service_name}...")
+    print(f"   [ACTION] Stopping service {service_name}...")
     subprocess.run(f"net stop {service_name}", shell=True, capture_output=True)
 
 def run_agent_job():
-    # 1. Tải Policy mới nhất
-    print(f"\n[SYNC] Dang tai Policy tu Server...")
+    print(f"\n[SYNC] Pulling Policy from Server...")
     policy = get_policy()
     
     if not policy:
-        print("   -> Khong ket noi duoc Server. Dung policy cu...")
-        # Fallback nếu mất mạng (Dùng tạm Spooler)
+        print("   -> Connection failed. Using fallback policy.")
         target_service = "Spooler"
         desired_state = "STOPPED"
     else:
         target_service = policy["service_name"]
         desired_state = policy["desired_state"]
-        print(f"   -> Policy: Service '{target_service}' phai '{desired_state}'")
+        print(f"   -> Policy: Service '{target_service}' must be '{desired_state}'")
 
-    # 2. Thực thi kiểm tra
     current = check_service(target_service)
     
     if current == desired_state:
-        print(f"   -> OK: Tuan thu dung ({current}).")
+        print(f"   -> OK: Compliant ({current}).")
         send_report("SAFE", f"Service {target_service} is {current}")
     else:
-        print(f"   -> DRIFT: Phat hien sai lech! (Dang: {current})")
+        print(f"   -> DRIFT: Violation Detected! (Current: {current})")
         send_report("DRIFT", f"Drift detected on {target_service}")
         
         # Tự sửa lỗi
         fix_drift(target_service)
 
 if __name__ == "__main__":
-    print(f"Windows Agent (Smart Mode) khoi dong...")
+    print(f"Windows Agent (Smart Mode) starting...")
     while True:
         run_agent_job()
         time.sleep(10)
