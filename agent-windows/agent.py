@@ -5,6 +5,7 @@ import socket
 import requests
 import psutil
 import datetime
+import os
 
 # ==========================================
 # CONFIGURATION
@@ -118,6 +119,79 @@ def get_system_metrics():
         return {"cpu": cpu, "ram": ram, "disk": disk}
     except:
         return {"cpu": 0, "ram": 0, "disk": 0}
+def check_firewall():
+    """Kiểm tra tường lửa đang Bật hay Tắt"""
+    try:
+        cmd = "netsh advfirewall show allprofiles state"
+        result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
+        if "ON" in result.stdout: return "ON"
+        return "OFF"
+    except: return "UNKNOWN"
+
+def set_firewall(state):
+    """Cấu hình tường lửa: state = 'ON' hoặc 'OFF'"""
+    print(f"   [ACTION] Setting Firewall to {state}...")
+    subprocess.run(f"netsh advfirewall set allprofiles state {state}", shell=True, capture_output=True)
+
+# --- LOGIC CHẶN WEB (HOSTS FILE) ---
+def block_website(domain):
+    """Chặn web bằng cách trỏ về 127.0.0.1 trong file hosts"""
+    hosts_path = r"C:\Windows\System32\drivers\etc\hosts"
+    entry = f"\n127.0.0.1       {domain}"
+    
+    if not domain: return # Nếu rỗng thì bỏ qua
+
+    try:
+        # Đọc file xem đã chặn chưa
+        with open(hosts_path, 'r') as f:
+            content = f.read()
+        
+        if domain in content:
+            return "BLOCKED" # Đã chặn rồi
+        
+        # Nếu chưa chặn thì ghi thêm vào
+        print(f"   [ACTION] Blocking website: {domain}...")
+        with open(hosts_path, 'a') as f:
+            f.write(entry)
+        return "BLOCKED"
+    except Exception as e:
+        print(f"   [ERROR] Cannot edit hosts file: {e}")
+        return "ERROR"
+
+# --- HÀM CHẠY CHÍNH ĐÃ ĐƯỢC NÂNG CẤP ---
+def run_agent_job():
+    print(f"\n[SYNC] Checking Policy...")
+    policy = get_policy() # Hàm này giữ nguyên từ bài trước
+    
+    if not policy: return
+
+    # 1. Xử lý Service (Logic cũ)
+    svc_name = policy.get("service_name")
+    svc_state = policy.get("desired_state")
+    current_svc = check_service(svc_name) # Hàm check_service cũ
+    
+    if current_svc != svc_state:
+        print(f"   -> DRIFT SERVICE: {svc_name} is {current_svc}. Fixing...")
+        fix_drift(svc_name) # Cần sửa hàm fix_drift cũ để hỗ trợ cả Start/Stop nếu muốn
+    
+    # 2. Xử lý Firewall (Logic MỚI)
+    fw_policy = policy.get("firewall") # "ON" hoặc "OFF"
+    current_fw = check_firewall()
+    
+    if fw_policy and current_fw != fw_policy:
+        print(f"   -> DRIFT FIREWALL: Expected {fw_policy} but got {current_fw}. Fixing...")
+        set_firewall(fw_policy.lower()) # netsh dùng on/off thường
+        send_report("DRIFT", f"Firewall fixed to {fw_policy}")
+    
+    # 3. Xử lý Chặn Web (Logic MỚI)
+    site_to_block = policy.get("blocked_site")
+    if site_to_block:
+        block_status = block_website(site_to_block)
+        if block_status == "ERROR":
+            send_report("DRIFT", f"Failed to block {site_to_block}")
+
+    # Gửi báo cáo định kỳ
+    send_report("SAFE", f"Policy Enforced. FW: {current_fw} | Block: {site_to_block}")
 if __name__ == "__main__":
     print(f"Windows Agent (Smart Mode) starting...")
     while True:

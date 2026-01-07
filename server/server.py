@@ -97,6 +97,38 @@ def receive_report():
 @app.route('/api/inventory', methods=['GET'])
 def get_inventory():
     return jsonify(device_inventory)
+@app.route('/admin')
+def admin_page():
+    """Hiển thị trang chỉnh sửa Policy"""
+    try:
+        with open(POLICY_FILE, 'r') as f:
+            policy = json.load(f)
+        return render_template('admin.html', policy=policy)
+    except:
+        return "Error loading policy file."
+
+@app.route('/admin/save', methods=['POST'])
+def save_policy():
+    """Lưu cấu hình từ Form vào file JSON"""
+    new_policy = {
+        "windows": {
+            "service_name": request.form.get('win_service'),
+            "desired_state": request.form.get('win_state'),
+            "firewall": request.form.get('win_firewall'),       # <--- MỚI
+            "blocked_site": request.form.get('win_blocked_site') # <--- MỚI
+        },
+        "linux": {
+            "prohibited_file": request.form.get('linux_file')
+        }
+    }
+    
+    try:
+        with open(POLICY_FILE, 'w') as f:
+            json.dump(new_policy, f, indent=4)
+        print("[ADMIN] Policy updated by Admin.")
+        return render_template('admin.html', policy=new_policy) # Load lại trang với data mới
+    except Exception as e:
+        return f"Error saving policy: {e}"
 
 if __name__ == '__main__':
     print(f"[*] Server File-Based Mode Started...")
