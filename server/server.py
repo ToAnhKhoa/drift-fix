@@ -4,41 +4,44 @@ from flask import Flask, request, jsonify, render_template
 from datetime import datetime
 
 app = Flask(__name__)
-device_inventory = {}
+
+# ==========================================
+# STUDENT INFO
+# ==========================================
+# Name:  [DIEN_TEN_BAN_VAO_DAY]
+# Class: [DIEN_LOP_VAO_DAY]
+
 # ==========================================
 # CONFIGURATION
 # ==========================================
 API_SECRET_KEY = "prethesis"
+device_inventory = {} # In-memory storage for Dashboard
 
-# Path
+# Paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 POLICY_FILE = os.path.join(BASE_DIR, 'policies', 'policy.json')
 LOG_DIR = os.path.join(BASE_DIR, 'logs')
-# Check if logs exist
+
+# Ensure logs directory exists
 if not os.path.exists(LOG_DIR):
     os.makedirs(LOG_DIR)
+
+# ==========================================
+# HELPER FUNCTIONS
+# ==========================================
+
 def save_log_to_file(hostname, data):
-    """Lưu báo cáo vào file text để lưu trữ lâu dài"""
+    """Save report to persistent log file"""
     log_file = os.path.join(LOG_DIR, 'agent_history.log')
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
     log_entry = f"[{timestamp}] HOST: {hostname} | STATUS: {data.get('status')} | MSG: {data.get('message')}\n"
     
-    # Ghi nối đuôi (append mode 'a')
-    with open(log_file, 'a', encoding='utf-8') as f:
-        f.write(log_entry)
-# Centralized Policy
-current_policy = {
-    "windows": {
-        "service_name": "Spooler",
-        "desired_state": "STOPPED"
-    },
-    "linux": {
-        "prohibited_file": "/tmp/virus.txt"
-    }
-}
-
-device_inventory = {}
+    try:
+        with open(log_file, 'a', encoding='utf-8') as f:
+            f.write(log_entry)
+    except Exception as e:
+        print(f"[ERROR] Could not write to log file: {e}")
 
 def check_auth(req):
     return req.headers.get('X-Api-Key') == API_SECRET_KEY
@@ -49,10 +52,22 @@ def check_auth(req):
 
 @app.route('/')
 def home():
+    """Dashboard Interface"""
     return render_template('index.html')
+
+@app.route('/blocked_warning')
+def blocked_page():
+    """Show Access Denied page for blocked sites"""
+    return render_template('blocked.html')
+
+# Catch-all for 404 to support DNS redirection (Optional)
+@app.errorhandler(404)
+def page_not_found(e):
+    return render_template('blocked.html'), 404
+
 @app.route('/api/policy', methods=['GET'])
 def get_policy():
-    """Đọc cấu hình từ file JSON thật"""
+    """Serve policy.json to Agents"""
     try:
         with open(POLICY_FILE, 'r') as f:
             policy_data = json.load(f)
@@ -62,6 +77,7 @@ def get_policy():
 
 @app.route('/api/report', methods=['POST'])
 def receive_report():
+    """Handle reports from Agents"""
     if not check_auth(request):
         return jsonify({"error": "Unauthorized"}), 401
 
@@ -69,11 +85,10 @@ def receive_report():
     hostname = data.get('hostname')
     status = data.get('status') 
     
-    # Update inventory
-    # Temp save in RAM
+    # 1. Update Inventory (RAM)
     device_inventory[hostname] = {
         "ip": request.remote_addr,
-        "status": data.get('status'),
+        "status": status,
         "os": data.get('os'),
         "os_full": data.get('os_full', 'Unknown'),
         "os_release": data.get('os_release', 'Unknown'),
@@ -84,38 +99,51 @@ def receive_report():
         "ram": data.get('ram', 0),
         "disk": data.get('disk', 0)
     }
-    # Save logs
+
+    # 2. Save to Log File (HDD)
     save_log_to_file(hostname, data)
     
-    print(f"[LOG] Saved report from {hostname} to file.")
-    return jsonify({"message": "Report logged successfully"}), 200
+    # Log to Console
+    print(f"\n[REPORT] From {hostname} | Status: {status} | Msg: {data.get('message')}")
     
-    # Log to console (English)
-    print(f"\n[REPORT] Received from {hostname} | Status: {status} | OS: {data.get('os')}")
     return jsonify({"message": "Report received", "server_time": datetime.now()}), 200
 
 @app.route('/api/inventory', methods=['GET'])
 def get_inventory():
+    """API for Dashboard AJAX"""
     return jsonify(device_inventory)
+
+# ==========================================
+# ADMIN PORTAL
+# ==========================================
+
 @app.route('/admin')
 def admin_page():
-    """Hiển thị trang chỉnh sửa Policy"""
+    """Render Admin Interface"""
     try:
         with open(POLICY_FILE, 'r') as f:
             policy = json.load(f)
         return render_template('admin.html', policy=policy)
     except:
-        return "Error loading policy file."
+        return "Error loading policy file. Please check server logs."
 
 @app.route('/admin/save', methods=['POST'])
 def save_policy():
-    """Lưu cấu hình từ Form vào file JSON"""
+    """Save Policy from Admin Form"""
+    
+    # Handle Blocked Sites List (JSON string from hidden input)
+    blocked_sites_raw = request.form.get('blocked_sites_json')
+    try:
+        blocked_list = json.loads(blocked_sites_raw) if blocked_sites_raw else []
+    except:
+        blocked_list = []
+
     new_policy = {
         "windows": {
             "service_name": request.form.get('win_service'),
             "desired_state": request.form.get('win_state'),
-            "firewall": request.form.get('win_firewall'),       # <--- MỚI
-            "blocked_site": request.form.get('win_blocked_site') # <--- MỚI
+            "firewall": request.form.get('win_firewall'),
+            "blocked_sites": blocked_list  # <--- FIXED: Now using List
         },
         "linux": {
             "prohibited_file": request.form.get('linux_file')
@@ -125,11 +153,12 @@ def save_policy():
     try:
         with open(POLICY_FILE, 'w') as f:
             json.dump(new_policy, f, indent=4)
-        print("[ADMIN] Policy updated by Admin.")
-        return render_template('admin.html', policy=new_policy) # Load lại trang với data mới
+        
+        print(f"[ADMIN] Policy updated! Blocked sites count: {len(blocked_list)}")
+        return render_template('admin.html', policy=new_policy)
     except Exception as e:
         return f"Error saving policy: {e}"
 
 if __name__ == '__main__':
-    print(f"[*] Server File-Based Mode Started...")
+    print(f"[*] Master Server Online on Port 5000...")
     app.run(host='0.0.0.0', port=5000, debug=True)
