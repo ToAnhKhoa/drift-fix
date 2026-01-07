@@ -3,7 +3,7 @@
         "service_name": "Spooler",
         "desired_state": "STOPPED",
         "firewall": "OFF",
-        "blocked_site": "facebook.com"
+        "blocked_sites": []
     },
     "linux": {
         "prohibited_file": "/tmp/virus.txt"
