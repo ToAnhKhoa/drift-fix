@@ -2,64 +2,132 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Policy Admin Panel</title>
+    <title>DriftGuard Policy Admin</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .card { box-shadow: 0 4px 15px rgba(0,0,0,0.1); border: none; }
+        .list-group-item { display: flex; justify-content: space-between; align-items: center; }
+    </style>
 </head>
-<body class="bg-light">
+<body class="py-5">
 
-<div class="container mt-5">
-    <div class="card shadow">
-        <div class="card-header bg-dark text-white">
-            <h3>⚙️ Configure System Policies</h3>
-        </div>
-        <div class="card-body">
-            <form action="/admin/save" method="POST">
-                
-                <h4 class="text-primary mb-3">Windows Policies</h4>
-                
-                <div class="mb-3">
-                    <label class="form-label fw-bold">1. Target Service Control:</label>
-                    <div class="input-group">
-                        <span class="input-group-text">Service Name</span>
-                        <input type="text" class="form-control" name="win_service" value="{{ policy.windows.service_name }}">
-                        <span class="input-group-text">Desired State</span>
-                        <select class="form-select" name="win_state">
-                            <option value="STOPPED" {% if policy.windows.desired_state == 'STOPPED' %}selected{% endif %}>STOPPED</option>
-                            <option value="RUNNING" {% if policy.windows.desired_state == 'RUNNING' %}selected{% endif %}>RUNNING</option>
-                        </select>
-                    </div>
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">⚙️ System Policy Configuration</h4>
+                    <a href="/" class="btn btn-sm btn-outline-light">Back to Dashboard</a>
                 </div>
+                <div class="card-body">
+                    <form action="/admin/save" method="POST" id="policyForm">
+                        
+                        <h5 class="text-primary border-bottom pb-2 mb-3">🪟 Windows Agent</h5>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Service Monitor</label>
+                                <input type="text" class="form-control" name="win_service" value="{{ policy.windows.service_name }}">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Desired State</label>
+                                <select class="form-select" name="win_state">
+                                    <option value="STOPPED" {% if policy.windows.desired_state == 'STOPPED' %}selected{% endif %}>STOPPED (Force Kill)</option>
+                                    <option value="RUNNING" {% if policy.windows.desired_state == 'RUNNING' %}selected{% endif %}>RUNNING (Force Start)</option>
+                                </select>
+                            </div>
+                        </div>
 
-                <div class="mb-3">
-                    <label class="form-label fw-bold">2. Firewall Policy:</label>
-                    <select class="form-select" name="win_firewall">
-                        <option value="ON" {% if policy.windows.firewall == 'ON' %}selected{% endif %}>Enforce ON (An toàn)</option>
-                        <option value="OFF" {% if policy.windows.firewall == 'OFF' %}selected{% endif %}>Enforce OFF (Nguy hiểm - Demo)</option>
-                    </select>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Firewall Enforcement</label>
+                            <select class="form-select" name="win_firewall">
+                                <option value="ON" {% if policy.windows.firewall == 'ON' %}selected{% endif %}>Always ON (Secure)</option>
+                                <option value="OFF" {% if policy.windows.firewall == 'OFF' %}selected{% endif %}>Always OFF (Risky)</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-4 p-3 bg-light rounded border">
+                            <label class="form-label fw-bold text-danger">🚫 Website Block List (Hosts File)</label>
+                            
+                            <input type="hidden" name="blocked_sites_json" id="hidden_blocked_input" value='{{ policy.windows.blocked_sites|tojson }}'>
+
+                            <div class="input-group mb-2">
+                                <input type="text" id="new_site_input" class="form-control" placeholder="e.g. facebook.com">
+                                <button type="button" class="btn btn-danger" onclick="addSite()">➕ Add to Blocklist</button>
+                            </div>
+
+                            <ul class="list-group" id="site_list_display">
+                                </ul>
+                            <small class="text-muted">Changes will be applied to Agents within 30 seconds.</small>
+                        </div>
+
+                        <h5 class="text-danger border-bottom pb-2 mb-3">🐧 Linux Agent</h5>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Prohibited File Check</label>
+                            <input type="text" class="form-control" name="linux_file" value="{{ policy.linux.prohibited_file }}">
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-success btn-lg">💾 SAVE POLICY & PUSH</button>
+                        </div>
+                    </form>
                 </div>
-
-                <div class="mb-3">
-                    <label class="form-label fw-bold">3. Blocked Websites (Domain):</label>
-                    <input type="text" class="form-control" name="win_blocked_site" value="{{ policy.windows.blocked_site }}" placeholder="e.g. facebook.com">
-                    <small class="text-muted">Agent sẽ trỏ tên miền này về 127.0.0.1 (File Hosts).</small>
-                </div>
-
-                <hr>
-
-                <h4 class="text-danger mb-3">Linux Policies</h4>
-                <div class="mb-3">
-                    <label class="form-label fw-bold">Prohibited File:</label>
-                    <input type="text" class="form-control" name="linux_file" value="{{ policy.linux.prohibited_file }}">
-                </div>
-
-                <div class="d-grid gap-2">
-                    <button type="submit" class="btn btn-success btn-lg"> SAVE & PUSH POLICY</button>
-                    <a href="/" class="btn btn-secondary">Back to Dashboard</a>
-                </div>
-            </form>
+            </div>
         </div>
     </div>
 </div>
+
+<script>
+    // 1. Lấy dữ liệu từ Server lúc tải trang (hoặc khởi tạo mảng rỗng nếu chưa có)
+    let currentSites = {{ policy.windows.blocked_sites|tojson }};
+    if (!currentSites) currentSites = [];
+
+    // 2. Hàm vẽ lại danh sách ra màn hình
+    function renderList() {
+        const listEl = document.getElementById('site_list_display');
+        const hiddenInput = document.getElementById('hidden_blocked_input');
+        
+        listEl.innerHTML = ''; // Xóa danh sách cũ
+        
+        currentSites.forEach(site => {
+            listEl.innerHTML += `
+                <li class="list-group-item">
+                    <span class="fw-bold text-dark">${site}</span>
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeSite('${site}')">🗑 Remove</button>
+                </li>
+            `;
+        });
+
+        // QUAN TRỌNG: Cập nhật ô Input Ẩn dạng JSON String
+        hiddenInput.value = JSON.stringify(currentSites);
+        console.log("Updated hidden input:", hiddenInput.value);
+    }
+
+    // 3. Hàm thêm trang web
+    function addSite() {
+        const input = document.getElementById('new_site_input');
+        let val = input.value.trim().toLowerCase();
+        
+        // Bỏ 'http://' hoặc 'https://' nếu người dùng lỡ nhập
+        val = val.replace(/^https?:\/\//, '').replace(/^www\./, '');
+
+        if (val && !currentSites.includes(val)) {
+            currentSites.push(val);
+            renderList(); // Vẽ lại ngay
+            input.value = ''; // Xóa ô nhập
+        }
+    }
+
+    // 4. Hàm xóa trang web
+    function removeSite(siteToRemove) {
+        currentSites = currentSites.filter(site => site !== siteToRemove);
+        renderList();
+    }
+
+    // Chạy lần đầu khi mở trang
+    renderList();
+</script>
 
 </body>
 </html>
