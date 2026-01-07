@@ -53,13 +53,15 @@
                             <input type="hidden" name="blocked_sites_json" id="hidden_blocked_input" value='{{ policy.windows.blocked_sites|tojson }}'>
 
                             <div class="input-group mb-2">
-                                <input type="text" id="new_site_input" class="form-control" placeholder="e.g. facebook.com">
+                                <input type="text" id="new_site_input" class="form-control" placeholder="e.g. www.facebook.com">
                                 <button type="button" class="btn btn-danger" onclick="addSite()">➕ Add to Blocklist</button>
                             </div>
 
                             <ul class="list-group" id="site_list_display">
                                 </ul>
-                            <small class="text-muted">Changes will be applied to Agents within 30 seconds.</small>
+                            <small class="text-muted">
+                                Tip: Add both <b>domain.com</b> and <b>www.domain.com</b> for best results.
+                            </small>
                         </div>
 
                         <h5 class="text-danger border-bottom pb-2 mb-3">🐧 Linux Agent</h5>
@@ -79,16 +81,16 @@
 </div>
 
 <script>
-    // 1. Lấy dữ liệu từ Server lúc tải trang (hoặc khởi tạo mảng rỗng nếu chưa có)
+    // 1. Initialize data from Server
     let currentSites = {{ policy.windows.blocked_sites|tojson }};
     if (!currentSites) currentSites = [];
 
-    // 2. Hàm vẽ lại danh sách ra màn hình
+    // 2. Render list to UI
     function renderList() {
         const listEl = document.getElementById('site_list_display');
         const hiddenInput = document.getElementById('hidden_blocked_input');
         
-        listEl.innerHTML = ''; // Xóa danh sách cũ
+        listEl.innerHTML = ''; 
         
         currentSites.forEach(site => {
             listEl.innerHTML += `
@@ -99,33 +101,35 @@
             `;
         });
 
-        // QUAN TRỌNG: Cập nhật ô Input Ẩn dạng JSON String
+        // Update hidden input for Form Submit
         hiddenInput.value = JSON.stringify(currentSites);
-        console.log("Updated hidden input:", hiddenInput.value);
     }
 
-    // 3. Hàm thêm trang web
+    // 3. Add Site Function
     function addSite() {
         const input = document.getElementById('new_site_input');
         let val = input.value.trim().toLowerCase();
         
-        // Bỏ 'http://' hoặc 'https://' nếu người dùng lỡ nhập
-        val = val.replace(/^https?:\/\//, '').replace(/^www\./, '');
+        // Remove http/https protocol but KEEP 'www'
+        val = val.replace(/^https?:\/\//, ''); 
+        
+        // Logic cũ của bạn bị sai ở đây (đã xóa đoạn .replace(/^www\./, ''))
+        // Giờ bạn có thể thêm thoải mái.
 
         if (val && !currentSites.includes(val)) {
             currentSites.push(val);
-            renderList(); // Vẽ lại ngay
-            input.value = ''; // Xóa ô nhập
+            renderList();
+            input.value = ''; 
         }
     }
 
-    // 4. Hàm xóa trang web
+    // 4. Remove Site Function
     function removeSite(siteToRemove) {
         currentSites = currentSites.filter(site => site !== siteToRemove);
         renderList();
     }
 
-    // Chạy lần đầu khi mở trang
+    // Initial render
     renderList();
 </script>
 

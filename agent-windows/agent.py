@@ -11,8 +11,8 @@ import platform
 # ==========================================
 # STUDENT INFO (PLEASE FILL THIS)
 # ==========================================
-# Name:  [YOUR NAME HERE]
-# Class: [YOUR CLASS HERE]
+# Name:  [DIEN_TEN_BAN_VAO_DAY]
+# Class: [DIEN_LOP_VAO_DAY]
 # ==========================================
 
 # ==========================================
