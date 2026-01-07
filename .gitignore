@@ -1,0 +1,15 @@
+#1. dynamic file 
+server/policies/policy.json
+#2. logs
+server/logs/
+*.log
+*.txt
+remediation_history.txt
+#3. ignore virtual env/lib
+__pycache__/
+*.pyc
+venv/
+env/
+.env
+#4. sysfile
+.DS_Store
