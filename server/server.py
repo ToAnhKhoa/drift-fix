@@ -60,7 +60,7 @@ def blocked_page():
     """Show Access Denied page for blocked sites"""
     return render_template('blocked.html')
 
-# Catch-all for 404 to support DNS redirection (Optional)
+# Catch-all for 404 to support DNS redirection
 @app.errorhandler(404)
 def page_not_found(e):
     return render_template('blocked.html'), 404
@@ -131,27 +131,35 @@ def admin_page():
 def save_policy():
     """Save Policy from Admin Form"""
     
-    # --- PHẦN QUAN TRỌNG NHẤT ---
-    # Phải lấy 'blocked_sites_json' chứ KHÔNG PHẢI 'win_blocked_site'
+    # --- HANDLING BLOCKED SITES LIST ---
     blocked_sites_raw = request.form.get('blocked_sites_json')
     try:
-        # Chuyển chuỗi JSON thành List Python
+        # Parse JSON string to Python List
         blocked_list = json.loads(blocked_sites_raw) if blocked_sites_raw else []
     except:
         blocked_list = []
-    # -----------------------------
 
     new_policy = {
         "windows": {
             "service_name": request.form.get('win_service'),
             "desired_state": request.form.get('win_state'),
             "firewall": request.form.get('win_firewall'),
-            "blocked_sites": blocked_list  # <--- Lưu List vào đây
+            "blocked_sites": blocked_list  # Save as List
         },
         "linux": {
             "prohibited_file": request.form.get('linux_file')
         }
     }
+    
+    # --- MISSING PART ADDED BELOW ---
+    try:
+        with open(POLICY_FILE, 'w') as f:
+            json.dump(new_policy, f, indent=4)
+        
+        print(f"[ADMIN] Policy updated! Blocked sites count: {len(blocked_list)}")
+        return render_template('admin.html', policy=new_policy)
+    except Exception as e:
+        return f"Error saving policy: {e}"
 
 if __name__ == '__main__':
     print(f"[*] Master Server Online on Port 5000...")
