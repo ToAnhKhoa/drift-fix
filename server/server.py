@@ -1,13 +1,32 @@
+import json
+import os
 from flask import Flask, request, jsonify, render_template
 from datetime import datetime
 
 app = Flask(__name__)
-
+device_inventory = {}
 # ==========================================
 # CONFIGURATION
 # ==========================================
 API_SECRET_KEY = "prethesis"
 
+# Path
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+POLICY_FILE = os.path.join(BASE_DIR, 'policies', 'policy.json')
+LOG_DIR = os.path.join(BASE_DIR, 'logs')
+# Check if logs exist
+if not os.path.exists(LOG_DIR):
+    os.makedirs(LOG_DIR)
+def save_log_to_file(hostname, data):
+    """Lưu báo cáo vào file text để lưu trữ lâu dài"""
+    log_file = os.path.join(LOG_DIR, 'agent_history.log')
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    log_entry = f"[{timestamp}] HOST: {hostname} | STATUS: {data.get('status')} | MSG: {data.get('message')}\n"
+    
+    # Ghi nối đuôi (append mode 'a')
+    with open(log_file, 'a', encoding='utf-8') as f:
+        f.write(log_entry)
 # Centralized Policy
 current_policy = {
     "windows": {
@@ -22,8 +41,7 @@ current_policy = {
 device_inventory = {}
 
 def check_auth(req):
-    token = req.headers.get('X-Api-Key')
-    return token == API_SECRET_KEY
+    return req.headers.get('X-Api-Key') == API_SECRET_KEY
 
 # ==========================================
 # API ENDPOINTS
@@ -31,16 +49,19 @@ def check_auth(req):
 
 @app.route('/')
 def home():
-    """Dashboard Interface"""
     return render_template('index.html')
 @app.route('/api/policy', methods=['GET'])
 def get_policy():
-    """API provide policy to Agents"""
-    return jsonify(current_policy)
+    """Đọc cấu hình từ file JSON thật"""
+    try:
+        with open(POLICY_FILE, 'r') as f:
+            policy_data = json.load(f)
+            return jsonify(policy_data)
+    except Exception as e:
+        return jsonify({"error": "Cannot read policy file", "details": str(e)}), 500
 
 @app.route('/api/report', methods=['POST'])
 def receive_report():
-    """API receive reports from Agents"""
     if not check_auth(request):
         return jsonify({"error": "Unauthorized"}), 401
 
@@ -49,16 +70,25 @@ def receive_report():
     status = data.get('status') 
     
     # Update inventory
+    # Temp save in RAM
     device_inventory[hostname] = {
         "ip": request.remote_addr,
-        "status": status,
+        "status": data.get('status'),
         "os": data.get('os'),
+        "os_full": data.get('os_full', 'Unknown'),
+        "os_release": data.get('os_release', 'Unknown'),
+        "open_ports": data.get('open_ports', []),
         "last_seen": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "message": data.get('message'),
-        "cpu": data.get('cpu', 0),   
-        "ram": data.get('ram', 0),    
-        "disk": data.get('disk', 0)   
+        "cpu": data.get('cpu', 0),
+        "ram": data.get('ram', 0),
+        "disk": data.get('disk', 0)
     }
+    # Save logs
+    save_log_to_file(hostname, data)
+    
+    print(f"[LOG] Saved report from {hostname} to file.")
+    return jsonify({"message": "Report logged successfully"}), 200
     
     # Log to console (English)
     print(f"\n[REPORT] Received from {hostname} | Status: {status} | OS: {data.get('os')}")
@@ -69,5 +99,5 @@ def get_inventory():
     return jsonify(device_inventory)
 
 if __name__ == '__main__':
-    print(f"[*] Server starting... API Key: {API_SECRET_KEY}")
+    print(f"[*] Server File-Based Mode Started...")
     app.run(host='0.0.0.0', port=5000, debug=True)

@@ -1,0 +1,9 @@
+{
+    "windows": {
+        "service_name": "Spooler",
+        "desired_state": "STOPPED"
+    },
+    "linux": {
+        "prohibited_file": "/tmp/virus.txt"
+    }
+}

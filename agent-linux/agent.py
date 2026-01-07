@@ -3,6 +3,7 @@ import time
 import socket
 import requests
 import psutil
+import datetime
 
 SERVER_URL = "http://10.0.0.10:5000"
 API_SECRET_KEY = "prethesis"
@@ -26,9 +27,9 @@ def send_report(status, message):
             "os": "Linux",
             "status": status,
             "message": message,
-            "cpu": metrics["cpu"],      # <--- NEW DATA
-            "ram": metrics["ram"],      # <--- NEW DATA
-            "disk": metrics["disk"]     # <--- NEW DATA
+            "cpu": metrics["cpu"],      
+            "ram": metrics["ram"],      
+            "disk": metrics["disk"]     
         }
         headers = {"X-Api-Key": API_SECRET_KEY}
         requests.post(f"{SERVER_URL}/api/report", json=payload, headers=headers, timeout=2)
@@ -68,7 +69,30 @@ def run_agent_job():
     else:
         print("   -> OK: System Clean.")
         send_report("SAFE", "System Clean")
-
+def write_local_log(action, target, result):
+    """Ghi log nội bộ tại máy Agent"""
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    log_line = f"[{timestamp}] ACTION: {action} | TARGET: {target} | RESULT: {result}\n"
+    
+    try:
+        with open("/var/log/drift_agent.log", "a") as f: # Lưu hẳn vào thư mục log
+            f.write(log_line)
+        print(f"   -> [LOG] Written to /var/log/drift_agent.log")
+    except:
+        # Nếu không có quyền root ghi vào /var/log thì ghi tại chỗ
+        with open("drift_agent.log", "a") as f:
+            f.write(log_line)
+def fix_drift():
+    target_file = "/tmp/virus.txt"
+    
+    print(f"   [ACTION] Deleting file...")
+    try:
+        os.remove(target_file)
+        write_local_log("DELETE_FILE", target_file, "SUCCESS")
+        return True
+    except:
+        write_local_log("DELETE_FILE", target_file, "FAILED")
+        return False
 if __name__ == "__main__":
     print("Linux Agent (Smart Mode) starting...")
     while True:

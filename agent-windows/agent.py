@@ -4,6 +4,7 @@ import ctypes, sys
 import socket
 import requests
 import psutil
+import datetime
 
 # ==========================================
 # CONFIGURATION
@@ -61,11 +62,29 @@ def check_service(service_name):
         elif "STOPPED" in result.stdout: return "STOPPED"
         else: return "UNKNOWN"
     except: return "ERROR"
+def write_local_log(action, target, result):
+    """Ghi log nội bộ tại máy Agent"""
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    log_line = f"[{timestamp}] ACTION: {action} | TARGET: {target} | RESULT: {result}\n"
+    
+    try:
+        # Ghi vào file local
+        with open("remediation_history.txt", "a") as f:
+            f.write(log_line)
+        print(f"   -> [LOG] Written to local file: remediation_history.txt")
+    except Exception as e:
+        print(f"   -> [LOG] Error writing local file: {e}")
 
 def fix_drift(service_name):
     print(f"   [ACTION] Stopping service {service_name}...")
-    subprocess.run(f"net stop {service_name}", shell=True, capture_output=True)
-
+    try:
+        subprocess.run(f"net stop {service_name}", shell=True, capture_output=True, check=True)
+        # Ghi log file
+        write_local_log("STOP_SERVICE", service_name, "SUCCESS") 
+        return True
+    except:
+        write_local_log("STOP_SERVICE", service_name, "FAILED")
+        return False
 def run_agent_job():
     print(f"\n[SYNC] Pulling Policy from Server...")
     policy = get_policy()
