@@ -5,7 +5,7 @@ import json
 import platform
 import sys
 
-# --- MÀU SẮC TERMINAL (Giữ nguyên để debug dễ) ---
+# --- MÀU SẮC TERMINAL ---
 RED     = "\033[91m"
 GREEN   = "\033[92m"
 YELLOW  = "\033[93m"
@@ -26,12 +26,30 @@ def check_root():
         print(f"{RED}[ERROR] This agent must be run as ROOT/SUDO.{RESET}")
         sys.exit(1)
 
+def get_linux_distro():
+    """Đọc file /etc/os-release để lấy tên OS chi tiết (VD: Rocky Linux 9.7)"""
+    try:
+        if os.path.exists("/etc/os-release"):
+            with open("/etc/os-release", "r") as f:
+                for line in f:
+                    # Tìm dòng PRETTY_NAME="Rocky Linux 9.7 (Blue Onyx)"
+                    if line.startswith("PRETTY_NAME="):
+                        return line.split("=", 1)[1].strip().strip('"')
+    except Exception:
+        pass
+    # Nếu lỗi thì trả về mặc định
+    return f"{platform.system()} {platform.release()}"
+
 def get_system_payload(status, message):
+    # Lấy thông tin chi tiết
+    distro_name = get_linux_distro()
+    
     return {
         "hostname": platform.node(),
         "os": "Linux",
-        "os_full": f"{platform.system()} {platform.release()}",
-        "os_release": platform.version(),
+        # Sửa dòng này để hiện tên đầy đủ trên Dashboard
+        "os_full": distro_name, 
+        "os_release": platform.release(), # Kernel version
         "cpu": utils.get_cpu_usage(),
         "ram": utils.get_ram_usage(),
         "disk": utils.get_disk_usage(),
@@ -63,7 +81,7 @@ def send_report(status, message):
 
 def main():
     check_root()
-    print(f"{CYAN}=== LINUX DRIFT AGENT v1.2 ==={RESET}")
+    print(f"{CYAN}=== LINUX DRIFT AGENT v1.3 (DETAILED OS) ==={RESET}")
     print(f"Server: {SERVER_URL}")
     print("---------------------------------------")
 
@@ -86,15 +104,12 @@ def main():
             else:
                 print(f"   {GREEN}[SSH] ✅ System Safe{RESET}")
 
-        # --- SỬA ĐỔI QUAN TRỌNG Ở ĐÂY ---
         if is_drift:
             final_status = "DRIFT"
             final_msg = " | ".join(drift_messages)
         else:
-            # Đổi từ "SECURE" thành "SAFE" để khớp với Dashboard màu xanh
-            final_status = "SAFE"  
+            final_status = "SAFE"
             final_msg = "System Compliant"
-        # --------------------------------
 
         send_report(final_status, final_msg)
         time.sleep(CHECK_INTERVAL)
