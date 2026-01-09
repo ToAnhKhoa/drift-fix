@@ -18,6 +18,10 @@ while True:
     
     # 2. Lấy Policy
     policy = utils.get_policy()
+    if policy:
+        print(f"   [DEBUG POLICY] Sites received: {policy.get('blocked_sites')}")
+    else:
+        print(f"   [DEBUG POLICY] Policy is None / Cannot connect Server")
     
     if policy:
         drift_logs = []
