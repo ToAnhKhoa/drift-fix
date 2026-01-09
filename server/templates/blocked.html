@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Truy cập bị từ chối</title>
+    <title>Access Denied</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -19,35 +19,72 @@
         .container {
             background: white;
             padding: 40px;
-            border-radius: 10px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
             border: 1px solid #f5c6cb;
             max-width: 500px;
+            width: 90%;
         }
-        h1 { margin-top: 0; font-size: 24px; }
-        p { font-size: 16px; margin-bottom: 20px; }
-        .icon { font-size: 60px; margin-bottom: 20px; }
+        h1 { margin-top: 0; font-size: 24px; font-weight: 600; }
+        p { font-size: 15px; margin-bottom: 20px; line-height: 1.5; color: #5a5c69; }
+        .icon { font-size: 50px; margin-bottom: 20px; }
+        
+        /* Updated Button Style */
         .btn {
             background-color: #dc3545;
             color: white;
             border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
+            padding: 12px 30px;
+            border-radius: 4px;
             cursor: pointer;
             text-decoration: none;
-            font-weight: bold;
+            font-weight: 500;
+            font-size: 14px;
+            transition: background-color 0.2s;
+            display: inline-block;
         }
         .btn:hover { background-color: #c82333; }
+        
+        .footer { margin-top: 25px; font-size: 12px; color: #888; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="icon">🚫</div>
-        <h1>Truy cập bị chặn!</h1>
-        <p>Trang web này nằm trong danh sách hạn chế của tổ chức.</p>
-        <p>Vui lòng liên hệ Admin nếu bạn cho rằng đây là sự nhầm lẫn.</p>
+        <h1>Access Restricted</h1>
+        <p>
+            The website you are trying to access has been blocked in accordance with the organization's security policy.
+        </p>
+        <p>
+            Please close this tab to continue your work.
+        </p>
         <br>
-        <a href="javascript:history.back()" class="btn">Quay lại</a>
+        
+        <button onclick="attemptClose()" class="btn">Close Tab</button>
+        
+        <div class="footer">DriftGuard Security System &copy; 2026</div>
     </div>
+
+    <script>
+        /**
+         * Function to attempt closing the browser tab.
+         * Browsers block window.close() for tabs not opened by script.
+         * We use a fallback strategy to redirect to a blank page if close fails.
+         */
+        function attemptClose() {
+            // 1. Try standard close (May be blocked)
+            window.close();
+
+            // 2. Try tricking the browser (Works in some older Chrome versions)
+            window.open('', '_self', '');
+            window.close();
+
+            // 3. Fallback: If browser refuses to close, redirect to a safe blank page.
+            // This effectively "clears" the blocked content.
+            setTimeout(function() {
+                window.location.href = "about:blank";
+            }, 100);
+        }
+    </script>
 </body>
 </html>
