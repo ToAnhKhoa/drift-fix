@@ -6,32 +6,48 @@ from datetime import datetime
 app = Flask(__name__)
 
 # ==========================================
-# STUDENT INFO
-# ==========================================
-# Name:  [DIEN_TEN_BAN_VAO_DAY]
-# Class: [DIEN_LOP_VAO_DAY]
-
-# ==========================================
-# CONFIGURATION
+# CẤU HÌNH (CONFIGURATION)
 # ==========================================
 API_SECRET_KEY = "prethesis"
-device_inventory = {} # In-memory storage for Dashboard
+device_inventory = {} # Lưu trữ tạm thời trạng thái các máy (RAM)
 
-# Paths
+# Đường dẫn tuyệt đối (Giúp tránh lỗi khi chạy từ thư mục khác)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-POLICY_FILE = os.path.join(BASE_DIR, 'policies', 'policy.json')
+POLICY_DIR = os.path.join(BASE_DIR, 'policies')
+POLICY_FILE = os.path.join(POLICY_DIR, 'policy.json')
 LOG_DIR = os.path.join(BASE_DIR, 'logs')
 
-# Ensure logs directory exists
+# 1. Tạo thư mục Logs nếu chưa có
 if not os.path.exists(LOG_DIR):
     os.makedirs(LOG_DIR)
 
+# 2. Tạo thư mục Policies nếu chưa có
+if not os.path.exists(POLICY_DIR):
+    os.makedirs(POLICY_DIR)
+
+# 3. Tạo file policy.json mặc định nếu chưa có (Tránh lỗi crash server)
+if not os.path.exists(POLICY_FILE):
+    print("[INIT] Policy file not found. Creating default...")
+    default_policy = {
+        "windows": {
+            "blocked_sites": [],
+            "service_name": "Spooler",
+            "desired_state": "STOPPED",
+            "firewall": "OFF"
+        },
+        "linux": {
+            "prohibited_file": ""
+        }
+    }
+    with open(POLICY_FILE, 'w') as f:
+        json.dump(default_policy, f, indent=4)
+
 # ==========================================
-# HELPER FUNCTIONS
+# HÀM HỖ TRỢ (HELPER FUNCTIONS)
 # ==========================================
 
 def save_log_to_file(hostname, data):
-    """Save report to persistent log file"""
+    """Ghi log báo cáo từ Agent vào file"""
     log_file = os.path.join(LOG_DIR, 'agent_history.log')
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
@@ -44,40 +60,42 @@ def save_log_to_file(hostname, data):
         print(f"[ERROR] Could not write to log file: {e}")
 
 def check_auth(req):
+    """Kiểm tra Key bảo mật"""
     return req.headers.get('X-Api-Key') == API_SECRET_KEY
 
 # ==========================================
-# API ENDPOINTS
+# API ENDPOINTS (CHO AGENT & DASHBOARD)
 # ==========================================
 
 @app.route('/')
 def home():
-    """Dashboard Interface"""
+    """Giao diện chính (Dashboard)"""
     return render_template('index.html')
 
 @app.route('/blocked_warning')
 def blocked_page():
-    """Show Access Denied page for blocked sites"""
+    """Trang cảnh báo khi người dùng truy cập web cấm"""
     return render_template('blocked.html')
 
-# Catch-all for 404 to support DNS redirection
+# Chặn tất cả các trang 404 để hiển thị cảnh báo (Hỗ trợ chuyển hướng DNS)
 @app.errorhandler(404)
 def page_not_found(e):
     return render_template('blocked.html'), 404
 
 @app.route('/api/policy', methods=['GET'])
 def get_policy():
-    """Serve policy.json to Agents"""
+    """Agent gọi vào đây để lấy Policy về thực thi"""
     try:
         with open(POLICY_FILE, 'r') as f:
             policy_data = json.load(f)
             return jsonify(policy_data)
     except Exception as e:
+        # Trả về lỗi JSON để Agent biết đường xử lý
         return jsonify({"error": "Cannot read policy file", "details": str(e)}), 500
 
 @app.route('/api/report', methods=['POST'])
 def receive_report():
-    """Handle reports from Agents"""
+    """Nhận báo cáo từ Agent"""
     if not check_auth(request):
         return jsonify({"error": "Unauthorized"}), 401
 
@@ -85,7 +103,7 @@ def receive_report():
     hostname = data.get('hostname')
     status = data.get('status') 
     
-    # 1. Update Inventory (RAM)
+    # Cập nhật Inventory (RAM)
     device_inventory[hostname] = {
         "ip": request.remote_addr,
         "status": status,
@@ -100,26 +118,26 @@ def receive_report():
         "disk": data.get('disk', 0)
     }
 
-    # 2. Save to Log File (HDD)
+    # Ghi log ra file (HDD)
     save_log_to_file(hostname, data)
     
-    # Log to Console
+    # In ra màn hình console Server để bạn dễ debug
     print(f"\n[REPORT] From {hostname} | Status: {status} | Msg: {data.get('message')}")
     
-    return jsonify({"message": "Report received", "server_time": datetime.now()}), 200
+    return jsonify({"message": "Report received", "server_time": str(datetime.now())}), 200
 
 @app.route('/api/inventory', methods=['GET'])
 def get_inventory():
-    """API for Dashboard AJAX"""
+    """API cho Dashboard AJAX lấy danh sách máy"""
     return jsonify(device_inventory)
 
 # ==========================================
-# ADMIN PORTAL
+# ADMIN PORTAL (GIAO DIỆN QUẢN TRỊ)
 # ==========================================
 
 @app.route('/admin')
 def admin_page():
-    """Render Admin Interface"""
+    """Hiển thị trang Admin để chỉnh sửa Policy"""
     try:
         with open(POLICY_FILE, 'r') as f:
             policy = json.load(f)
@@ -129,38 +147,42 @@ def admin_page():
 
 @app.route('/admin/save', methods=['POST'])
 def save_policy():
-    """Save Policy from Admin Form"""
+    """Xử lý khi bấm nút SAVE trên trang Admin"""
     
-    # --- HANDLING BLOCKED SITES LIST ---
+    # 1. Xử lý danh sách Web bị chặn (Chuyển từ chuỗi JSON sang List Python)
     blocked_sites_raw = request.form.get('blocked_sites_json')
     try:
-        # Parse JSON string to Python List
         blocked_list = json.loads(blocked_sites_raw) if blocked_sites_raw else []
     except:
         blocked_list = []
 
+    # 2. Tạo cấu trúc Policy mới
     new_policy = {
         "windows": {
-            "service_name": request.form.get('win_service'),
+            # Lưu ý: Code này dùng service_name (đơn) theo yêu cầu của bạn. 
+            # Nếu Agent dùng restricted_services (list), bạn cần sửa lại HTML và Server.
+            "service_name": request.form.get('win_service'), 
             "desired_state": request.form.get('win_state'),
             "firewall": request.form.get('win_firewall'),
-            "blocked_sites": blocked_list  # Save as List
+            "blocked_sites": blocked_list  # Đây là phần quan trọng để chặn web
         },
         "linux": {
             "prohibited_file": request.form.get('linux_file')
         }
     }
     
-    # --- MISSING PART ADDED BELOW ---
+    # 3. Ghi đè vào file policy.json
     try:
         with open(POLICY_FILE, 'w') as f:
             json.dump(new_policy, f, indent=4)
         
         print(f"[ADMIN] Policy updated! Blocked sites count: {len(blocked_list)}")
+        # Load lại trang Admin với dữ liệu mới
         return render_template('admin.html', policy=new_policy)
     except Exception as e:
         return f"Error saving policy: {e}"
 
 if __name__ == '__main__':
+    # Host '0.0.0.0' để máy khác trong mạng (máy ảo) có thể kết nối được
     print(f"[*] Master Server Online on Port 5000...")
     app.run(host='0.0.0.0', port=5000, debug=True)
