@@ -15,7 +15,8 @@ RESET   = "\033[0m"
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 try:
-    from modules import utils, ssh_monitor
+    # IMPORT THÊM MODULE service_watchdog
+    from modules import utils, ssh_monitor, service_watchdog
     from config import SERVER_URL, API_SECRET_KEY, CHECK_INTERVAL
 except ImportError as e:
     print(f"{RED}[CRITICAL] Missing modules: {e}{RESET}")
@@ -27,7 +28,6 @@ def check_root():
         sys.exit(1)
 
 def get_linux_distro():
-    """Lấy tên OS chi tiết (VD: Rocky Linux 9.7)"""
     try:
         if os.path.exists("/etc/os-release"):
             with open("/etc/os-release", "r") as f:
@@ -42,7 +42,7 @@ def get_system_payload(status, message):
     return {
         "hostname": platform.node(),
         "os": "Linux",
-        "os_full": get_linux_distro(), # Tên OS đầy đủ
+        "os_full": get_linux_distro(),
         "os_release": platform.release(),
         "cpu": utils.get_cpu_usage(),
         "ram": utils.get_ram_usage(),
@@ -75,7 +75,7 @@ def send_report(status, message):
 
 def main():
     check_root()
-    print(f"{CYAN}=== LINUX DRIFT AGENT v1.4 (STABLE EDITION) ==={RESET}")
+    print(f"{CYAN}=== LINUX DRIFT AGENT v1.5 (SERVICE WATCHDOG) ==={RESET}")
     print(f"Server: {SERVER_URL}")
     print("---------------------------------------")
 
@@ -85,10 +85,13 @@ def main():
         
         linux_policy = fetch_policy()
         ssh_policy = linux_policy.get("ssh", {})
+        # Lấy danh sách services từ Policy
+        service_list = linux_policy.get("critical_services", [])
         
         is_drift = False
         drift_messages = []
 
+        # 1. SSH MONITOR
         if ssh_policy:
             ssh_drift, ssh_msg = ssh_monitor.check_ssh_drift(ssh_policy)
             if ssh_drift:
@@ -96,16 +99,25 @@ def main():
                 print(f"   {RED}[SSH] ❌ Drift Detected: {ssh_msg}{RESET}")
                 drift_messages.append(f"SSH: {ssh_msg}")
             else:
-                print(f"   {GREEN}[SSH] ✅ System Safe{RESET}")
+                print(f"   {GREEN}[SSH] ✅ Config Safe{RESET}")
 
+        # 2. SERVICE WATCHDOG (NEW)
+        if service_list:
+            svc_drift, svc_msg = service_watchdog.check_and_heal_services(service_list)
+            if svc_drift:
+                is_drift = True
+                print(f"   {RED}[SERVICE] ❌ Found Dead Services: {svc_msg}{RESET}")
+                drift_messages.append(svc_msg)
+            else:
+                print(f"   {GREEN}[SERVICE] ✅ All Critical Services Running{RESET}")
+
+        # REPORTING
         if is_drift:
             final_status = "DRIFT"
             final_msg = " | ".join(drift_messages)
         else:
-            # --- ĐÃ SỬA THÀNH: System Stable ---
             final_status = "SAFE"
             final_msg = "System Stable"
-            # -----------------------------------
 
         send_report(final_status, final_msg)
         time.sleep(CHECK_INTERVAL)
