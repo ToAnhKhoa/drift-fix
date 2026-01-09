@@ -27,29 +27,23 @@ def check_root():
         sys.exit(1)
 
 def get_linux_distro():
-    """Đọc file /etc/os-release để lấy tên OS chi tiết (VD: Rocky Linux 9.7)"""
+    """Lấy tên OS chi tiết (VD: Rocky Linux 9.7)"""
     try:
         if os.path.exists("/etc/os-release"):
             with open("/etc/os-release", "r") as f:
                 for line in f:
-                    # Tìm dòng PRETTY_NAME="Rocky Linux 9.7 (Blue Onyx)"
                     if line.startswith("PRETTY_NAME="):
                         return line.split("=", 1)[1].strip().strip('"')
     except Exception:
         pass
-    # Nếu lỗi thì trả về mặc định
     return f"{platform.system()} {platform.release()}"
 
 def get_system_payload(status, message):
-    # Lấy thông tin chi tiết
-    distro_name = get_linux_distro()
-    
     return {
         "hostname": platform.node(),
         "os": "Linux",
-        # Sửa dòng này để hiện tên đầy đủ trên Dashboard
-        "os_full": distro_name, 
-        "os_release": platform.release(), # Kernel version
+        "os_full": get_linux_distro(), # Tên OS đầy đủ
+        "os_release": platform.release(),
         "cpu": utils.get_cpu_usage(),
         "ram": utils.get_ram_usage(),
         "disk": utils.get_disk_usage(),
@@ -81,7 +75,7 @@ def send_report(status, message):
 
 def main():
     check_root()
-    print(f"{CYAN}=== LINUX DRIFT AGENT v1.3 (DETAILED OS) ==={RESET}")
+    print(f"{CYAN}=== LINUX DRIFT AGENT v1.4 (STABLE EDITION) ==={RESET}")
     print(f"Server: {SERVER_URL}")
     print("---------------------------------------")
 
@@ -108,8 +102,10 @@ def main():
             final_status = "DRIFT"
             final_msg = " | ".join(drift_messages)
         else:
+            # --- ĐÃ SỬA THÀNH: System Stable ---
             final_status = "SAFE"
-            final_msg = "System Compliant"
+            final_msg = "System Stable"
+            # -----------------------------------
 
         send_report(final_status, final_msg)
         time.sleep(CHECK_INTERVAL)
