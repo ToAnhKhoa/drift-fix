@@ -14,12 +14,33 @@ try:
 except ImportError as e:
     print(f"Missing modules: {e}"); sys.exit(1)
 
+# [MỚI] Hàm lấy tên hệ điều hành chi tiết (VD: Rocky Linux 9.7)
+def get_os_details():
+    pretty_name = "Linux Generic"
+    try:
+        if os.path.exists("/etc/os-release"):
+            with open("/etc/os-release", "r") as f:
+                for line in f:
+                    if line.startswith("PRETTY_NAME="):
+                        # Lấy nội dung trong ngoặc kép
+                        pretty_name = line.split("=", 1)[1].strip().strip('"')
+                        break
+    except: pass
+    return pretty_name
+
 def send_report(status, message):
     try:
+        # [CẬP NHẬT] Thêm os_full và os_release vào gói tin gửi đi
         payload = {
-            "hostname": platform.node(), "os": "Linux",
-            "status": status, "message": message,
-            "cpu": utils.get_cpu_usage(), "ram": utils.get_ram_usage(), "disk": utils.get_disk_usage()
+            "hostname": platform.node(), 
+            "os": "Linux",
+            "os_full": get_os_details(),       # <--- Thêm dòng này
+            "os_release": platform.release(),  # <--- Thêm dòng này (Kernel info)
+            "status": status, 
+            "message": message,
+            "cpu": utils.get_cpu_usage(), 
+            "ram": utils.get_ram_usage(), 
+            "disk": utils.get_disk_usage()
         }
         requests.post(f"{SERVER_URL}/api/report", json=payload, headers={"X-Api-Key": API_SECRET_KEY}, timeout=2)
         print(f" -> [REPORT] Sent: {RED if status == 'DRIFT' else GREEN}{status}{RESET}")
@@ -28,6 +49,7 @@ def send_report(status, message):
 def main():
     if os.geteuid() != 0: sys.exit(1)
     print(f"{CYAN}=== LINUX AGENT ENTERPRISE (FULL 5 MODULES) ==={RESET}")
+    print(f"OS Detected: {get_os_details()}") # In ra màn hình để kiểm tra
 
     while True:
         print(f"\n{CYAN}[SCAN] Auditing System...{RESET}")
