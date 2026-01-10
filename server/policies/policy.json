@@ -1,0 +1,26 @@
+{
+    "windows": {
+        "blocked_sites": ["www.youtube.com", "www.facebook.com"],
+        "service_name": "Spooler",
+        "desired_state": "STOPPED",
+        "firewall": "OFF"
+    },
+    "linux": {
+    "ssh_config": {
+        "PermitRootLogin": "no",
+        "PasswordAuthentication": "no",
+        "Port": "22",
+        "MaxAuthTries": "3"
+    },
+    "critical_services": {
+        "ensure_active": ["firewalld", "sshd", "crond"],
+        "ensure_inactive": ["telnet", "vsftpd"]
+    },
+    "allowed_ports": [22, 80, 443],
+    "file_permissions": [
+        {"path": "/etc/ssh/sshd_config", "mode": "600"},
+        {"path": "/etc/shadow", "mode": "000"}
+    ],
+    "allowed_admins": ["root", "vagrant", "centos"]
+}
+}
