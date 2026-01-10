@@ -11,32 +11,28 @@ def check_and_enforce_perms(file_policy_list):
 
     for item in file_policy_list:
         fpath = item.get("path")
-        target_mode_str = item.get("mode") # Dạng string, ví dụ "600"
+        target_mode_str = item.get("mode") # Dạng string "600"
 
-        # 1. Nếu file không tồn tại thì bỏ qua (tránh lỗi crash)
+        # Nếu file không tồn tại thì bỏ qua
         if not os.path.exists(fpath):
             continue 
 
         try:
-            # 2. Lấy quyền hiện tại
-            # st_mode trả về số nguyên, ta chuyển sang dạng octal (bát phân)
-            # Lấy 3 số cuối cùng (ví dụ: 0o100644 -> '644')
+            # 1. Lấy quyền hiện tại (Dạng octal string 3 số cuối)
             st = os.stat(fpath)
             current_mode = oct(st.st_mode)[-3:] 
             
-            # 3. So sánh
+            # 2. So sánh
             if current_mode != target_mode_str:
                 drift_detected = True
                 print(f"   [FILE FIX] {fpath}: Found {current_mode}, expected {target_mode_str}. Fixing...")
                 
-                # 4. Sửa quyền (Auto-Remediation)
-                # Hàm os.chmod cần tham số là số nguyên (int), nên phải convert từ string hệ 8
+                # 3. Sửa quyền (Convert string '600' sang int octal 0o600)
                 os.chmod(fpath, int(target_mode_str, 8))
                 
-                details.append(f"Fixed {fpath} ({target_mode_str})")
+                details.append(f"Fixed {fpath}")
 
         except Exception as e:
-            # Ghi log lỗi nếu không sửa được (ví dụ file đang bị khóa)
             print(f"   [FILE ERROR] Could not fix {fpath}: {e}")
 
     if drift_detected:
