@@ -9,8 +9,8 @@ RED = "\033[91m"; GREEN = "\033[92m"; CYAN = "\033[96m"; RESET = "\033[0m"
 
 try:
     from config import SERVER_URL, API_SECRET_KEY, CHECK_INTERVAL
-    from modules import utils, ssh_monitor, service_watchdog, file_guard
-    # Các module chưa làm xong (net_guard, sudo_audit) tạm chưa import để tránh lỗi
+    # Import thêm net_guard
+    from modules import utils, ssh_monitor, service_watchdog, file_guard, net_guard
 except ImportError as e:
     print(f"Missing modules: {e}"); sys.exit(1)
 
@@ -27,7 +27,7 @@ def send_report(status, message):
 
 def main():
     if os.geteuid() != 0: sys.exit(1)
-    print(f"{CYAN}=== LINUX AGENT (SSH + FILE + SERVICE) ==={RESET}")
+    print(f"{CYAN}=== LINUX AGENT (4 MODULES ACTIVE) ==={RESET}")
 
     while True:
         print(f"\n{CYAN}[SCAN] Auditing...{RESET}")
@@ -47,10 +47,15 @@ def main():
             d, m = file_guard.check_and_enforce_perms(p['file_permissions'])
             if d: drift = True; msgs.append(m); print(f"   {RED}[FILE] {m}{RESET}")
 
-        # 3. Service Watchdog (Vừa kích hoạt)
+        # 3. Service Watchdog
         if 'critical_services' in p:
             d, m = service_watchdog.check_and_enforce_services(p['critical_services'])
             if d: drift = True; msgs.append(m); print(f"   {RED}[SVC] {m}{RESET}")
+
+        # 4. Net Guard
+        if 'allowed_ports' in p:
+            d, m = net_guard.check_and_enforce_ports(p['allowed_ports'])
+            if d: drift = True; msgs.append(m); print(f"   {RED}[NET] {m}{RESET}")
 
         send_report("DRIFT" if drift else "SAFE", " | ".join(msgs) if drift else "Compliant")
         time.sleep(CHECK_INTERVAL)
