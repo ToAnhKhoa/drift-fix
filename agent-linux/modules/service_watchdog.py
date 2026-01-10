@@ -13,44 +13,30 @@ def run_command(cmd_str):
         return -1, ""
 
 def check_and_enforce_services(policy_services):
-    """
-    Xử lý 2 danh sách:
-    - ensure_active: Phải chạy (Nếu tắt -> Start)
-    - ensure_inactive: Phải tắt (Nếu chạy -> Stop & Disable)
-    """
-    # Lấy danh sách từ Policy, nếu không có thì trả về list rỗng
     active_list = policy_services.get("ensure_active", [])
     inactive_list = policy_services.get("ensure_inactive", [])
     
     details = []
     drift_detected = False
 
-    # 1. Xử lý nhóm CẦN BẬT (Ensure Active)
+    # 1. Xử lý nhóm CẦN BẬT
     for svc in active_list:
         code, status = run_command(f"{SYSTEMCTL_PATH} is-active {svc}")
-        # Nếu trạng thái KHÁC active (tức là inactive, failed, unknown...)
         if status != "active":
             drift_detected = True
             print(f"   [SVC FIX] Starting required service: {svc}...")
-            
-            # Thực hiện sửa lỗi
             run_command(f"{SYSTEMCTL_PATH} start {svc}")
-            run_command(f"{SYSTEMCTL_PATH} enable {svc}") # Đảm bảo khởi động cùng OS
-            
+            run_command(f"{SYSTEMCTL_PATH} enable {svc}")
             details.append(f"Started {svc}")
 
-    # 2. Xử lý nhóm CẦN TẮT (Ensure Inactive)
+    # 2. Xử lý nhóm CẦN TẮT
     for svc in inactive_list:
         code, status = run_command(f"{SYSTEMCTL_PATH} is-active {svc}")
-        # Nếu trạng thái LÀ active (đang chạy)
         if status == "active":
             drift_detected = True
             print(f"   [SVC FIX] Stopping prohibited service: {svc}...")
-            
-            # Thực hiện sửa lỗi
             run_command(f"{SYSTEMCTL_PATH} stop {svc}")
-            run_command(f"{SYSTEMCTL_PATH} disable {svc}") # Cấm khởi động cùng OS
-            
+            run_command(f"{SYSTEMCTL_PATH} disable {svc}")
             details.append(f"Stopped {svc}")
 
     if drift_detected:
