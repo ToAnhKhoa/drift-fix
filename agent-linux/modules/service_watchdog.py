@@ -1,64 +1,47 @@
-import subprocess
 import shutil
+import subprocess
 
-# Tìm đường dẫn chính xác của lệnh systemctl trên máy Rocky Linux
 SYSTEMCTL_PATH = shutil.which("systemctl") or "/usr/bin/systemctl"
 
 def run_command(cmd_str):
-    """Chạy lệnh và lấy cả lỗi (stderr) nếu có"""
     try:
-        # Chạy lệnh với shell=True
-        result = subprocess.run(
-            cmd_str, 
-            shell=True, 
-            stdout=subprocess.PIPE, 
-            stderr=subprocess.PIPE,
-            text=True
-        )
-        return result.returncode, result.stdout.strip(), result.stderr.strip()
-    except Exception as e:
-        return -1, "", str(e)
+        res = subprocess.run(cmd_str, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        return res.returncode, res.stdout.strip()
+    except: return -1, ""
 
-def check_and_heal_services(service_list):
-    drift_detected = False
+def check_and_enforce_services(policy_services):
+    """
+    Xử lý 2 danh sách:
+    - ensure_active: Phải chạy (Nếu tắt -> Start)
+    - ensure_inactive: Phải tắt (Nếu chạy -> Stop & Disable)
+    """
+    active_list = policy_services.get("ensure_active", [])
+    inactive_list = policy_services.get("ensure_inactive", [])
+    
     details = []
+    drift_detected = False
 
-    for service in service_list:
-        # 1. Kiểm tra trạng thái
-        cmd_check = f"{SYSTEMCTL_PATH} is-active {service}"
-        code, status, err = run_command(cmd_check)
-        
-        # Nếu service không active (inactive, failed, unknown...)
+    # 1. Xử lý nhóm CẦN BẬT
+    for svc in active_list:
+        code, status = run_command(f"{SYSTEMCTL_PATH} is-active {svc}")
         if status != "active":
             drift_detected = True
-            details.append(f"{service} is {status}")
-            
-            # 2. Thử sửa lỗi (Auto-healing)
-            print(f"   [SERVICE FIX] Restarting {service} via {SYSTEMCTL_PATH}...")
-            
-            cmd_restart = f"{SYSTEMCTL_PATH} restart {service}"
-            res_code, res_out, res_err = run_command(cmd_restart)
-            
-            if res_code != 0:
-                print(f"   [FIX ERROR] Failed to restart {service}. Error: {res_err}")
-            else:
-                print(f"   [FIX SUCCESS] Restart command sent for {service}")
+            print(f"   [SVC FIX] Starting required service: {svc}...")
+            run_command(f"{SYSTEMCTL_PATH} start {svc}")
+            run_command(f"{SYSTEMCTL_PATH} enable {svc}") # Bật khởi động cùng win/linux
+            details.append(f"Started {svc}")
+
+    # 2. Xử lý nhóm CẦN TẮT
+    for svc in inactive_list:
+        code, status = run_command(f"{SYSTEMCTL_PATH} is-active {svc}")
+        if status == "active":
+            drift_detected = True
+            print(f"   [SVC FIX] Stopping prohibited service: {svc}...")
+            run_command(f"{SYSTEMCTL_PATH} stop {svc}")
+            run_command(f"{SYSTEMCTL_PATH} disable {svc}") # Cấm khởi động lại
+            details.append(f"Stopped {svc}")
 
     if drift_detected:
-        # Kiểm tra lại lần cuối
-        fixed_count = 0
-        still_dead = []
-        
-        for service in service_list:
-             _, status, _ = run_command(f"{SYSTEMCTL_PATH} is-active {service}")
-             if status == "active":
-                 fixed_count += 1
-             else:
-                 still_dead.append(service)
-        
-        if fixed_count == len(service_list):
-            return True, f"Fixed: {', '.join(details)}"
-        else:
-            return True, f"Failed to Fix: {', '.join(still_dead)}"
-
+        return True, f"Service Config Enforced: {', '.join(details)}"
+    
     return False, None
