@@ -11,14 +11,14 @@ def check_and_enforce_perms(file_policy_list):
 
     for item in file_policy_list:
         fpath = item.get("path")
-        target_mode_str = item.get("mode") # Dạng string "600"
+        target_mode_str = item.get("mode") # string "600"
 
-        # Nếu file không tồn tại thì bỏ qua
+        
         if not os.path.exists(fpath):
             continue 
 
         try:
-            # 1. Lấy quyền hiện tại (Dạng octal string 3 số cuối)
+            # 1. Lấy quyền hiện tại 
             st = os.stat(fpath)
             current_mode = oct(st.st_mode)[-3:] 
             

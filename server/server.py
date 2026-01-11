@@ -4,32 +4,22 @@ from flask import Flask, request, jsonify, render_template
 from datetime import datetime
 
 app = Flask(__name__)
-
-# ==========================================
 # CONFIGURATION
-# ==========================================
 API_SECRET_KEY = "prethesis"
-device_inventory = {}  # In-memory storage for device status
-
-# Absolute paths to ensure stability across environments
+device_inventory = {} 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 POLICY_DIR = os.path.join(BASE_DIR, 'policies')
 POLICY_FILE = os.path.join(POLICY_DIR, 'policy.json')
 LOG_DIR = os.path.join(BASE_DIR, 'logs')
-
-# [NEW] Đường dẫn file lưu lịch sử sửa lỗi
 REMEDIATION_LOG = os.path.join(LOG_DIR, 'remediation_history.txt')
 
 # 1. Initialize Log Directory
 if not os.path.exists(LOG_DIR):
     os.makedirs(LOG_DIR)
-
 # 2. Initialize Policy Directory
 if not os.path.exists(POLICY_DIR):
     os.makedirs(POLICY_DIR)
-
 # 3. Create Default Policy if missing (Fail-safe)
-# [UPDATED] Cập nhật cấu trúc mặc định để hỗ trợ đầy đủ tính năng Linux Agent
 if not os.path.exists(POLICY_FILE):
     print("[INIT] Policy file not found. Creating default configuration...")
     default_policy = {
@@ -60,11 +50,7 @@ if not os.path.exists(POLICY_FILE):
     }
     with open(POLICY_FILE, 'w') as f:
         json.dump(default_policy, f, indent=4)
-
-# ==========================================
 # HELPER FUNCTIONS
-# ==========================================
-
 def save_log_to_file(hostname, data):
     """Persist agent reports to disk."""
     log_file = os.path.join(LOG_DIR, 'agent_history.log')
@@ -77,8 +63,6 @@ def save_log_to_file(hostname, data):
             f.write(log_entry)
     except Exception as e:
         print(f"[ERROR] Failed to write log: {e}")
-
-# [NEW] Hàm ghi log Drift riêng biệt
 def save_remediation_log(hostname, message):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     log_entry = f"[{timestamp}] HOST: {hostname} | ACTION: {message}\n"
@@ -91,11 +75,7 @@ def save_remediation_log(hostname, message):
 def check_auth(req):
     """Validate API Key."""
     return req.headers.get('X-Api-Key') == API_SECRET_KEY
-
-# ==========================================
 # API ENDPOINTS
-# ==========================================
-
 @app.route('/')
 def home():
     """Dashboard Home."""
@@ -146,10 +126,10 @@ def receive_report():
         "disk": data.get('disk', 0)
     }
 
-    # Save to Disk Log (Log chung)
+    # Save to Disk Log
     save_log_to_file(hostname, data)
 
-    # [NEW] Nếu phát hiện DRIFT (sửa lỗi), ghi vào file lịch sử riêng
+    # Nếu phát hiện DRIFT
     if status == "DRIFT":
         save_remediation_log(hostname, message)
     
@@ -162,11 +142,7 @@ def receive_report():
 def get_inventory():
     """API for Dashboard to fetch live device list."""
     return jsonify(device_inventory)
-
-# ==========================================
 # ADMIN PORTAL
-# ==========================================
-
 @app.route('/admin')
 def admin_page():
     """Render Admin Panel."""
@@ -177,7 +153,7 @@ def admin_page():
     except:
         return "Error loading policy file. Please check server logs."
 
-# [NEW] Route xem lịch sử sửa lỗi
+#Route xem lịch sử sửa lỗi
 @app.route('/history')
 def view_history():
     logs = []
@@ -185,11 +161,9 @@ def view_history():
         try:
             with open(REMEDIATION_LOG, "r", encoding="utf-8") as f:
                 logs = f.readlines()
-                logs.reverse() # Xem mới nhất trước
+                logs.reverse()
         except:
             logs = ["Error reading log file."]
-    
-    # Sử dụng template history.html (bạn cần tạo file này như hướng dẫn trước)
     return render_template('history.html', logs=logs)
 
 @app.route('/admin/save', methods=['POST'])
@@ -202,25 +176,19 @@ def save_policy():
         blocked_list = json.loads(blocked_sites_raw) if blocked_sites_raw else []
     except:
         blocked_list = []
-
-    # [UPDATED] Load chính sách cũ trước để không làm mất cấu hình Linux phức tạp
     try:
         with open(POLICY_FILE, 'r') as f:
             existing_policy = json.load(f)
     except:
         existing_policy = {"windows": {}, "linux": {}}
 
-    # 2. Update Windows Config (Lấy từ Form Admin)
+    # 2. Update Windows Config
     existing_policy['windows']['service_name'] = request.form.get('win_service')
     existing_policy['windows']['desired_state'] = request.form.get('win_state')
     existing_policy['windows']['firewall'] = request.form.get('win_firewall')
     existing_policy['windows']['blocked_sites'] = blocked_list
 
-    # [NOTE] Phần Linux trong Admin HTML hiện tại có thể chưa có form nhập liệu phức tạp
-    # nên ta giữ nguyên cấu trúc cũ, chỉ update nếu có form gửi lên.
-    # Logic này giúp bảo vệ cấu hình ssh/ports/admins không bị mất khi bấm Save.
     if request.form.get('linux_file'):
-         # Nếu bạn vẫn muốn giữ logic cũ (cấm file), ta có thể thêm key này vào
          existing_policy['linux']['prohibited_file'] = request.form.get('linux_file')
     
     # 3. Save to Disk

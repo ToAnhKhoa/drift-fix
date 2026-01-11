@@ -17,22 +17,18 @@ def get_ram_usage():
 def get_disk_usage():
     """Returns Disk usage percentage (Root partition)."""
     try:
-        # Linux uses '/' as root, unlike 'C:\\' in Windows
         return psutil.disk_usage('/').percent
     except: return 0
 
 def write_local_log(category, action, details):
     """Appends logs to a local file."""
-    # Linux path uses forward slashes
     log_dir = "/var/log/driftguard"
     log_file = os.path.join(log_dir, "agent.log")
     
-    # Ensure directory exists (Linux specific)
     if not os.path.exists(log_dir):
         try:
             os.makedirs(log_dir, exist_ok=True)
         except: 
-            # Fallback to current directory if permission denied
             log_file = "agent_history.log"
 
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")

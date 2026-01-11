@@ -1,4 +1,3 @@
-# modules/app_blocker.py
 import ctypes
 import time
 import webbrowser

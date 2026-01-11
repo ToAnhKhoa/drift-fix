@@ -1,4 +1,3 @@
-# agent-windows/modules/net_blocker.py (Phiên bản Fix Loop)
 import subprocess
 import os
 import sys
@@ -18,7 +17,7 @@ def normalize_content(content_lines):
     normalized = []
     for line in content_lines:
         s = line.strip()
-        if s: # Chỉ lấy dòng có nội dung
+        if s:
             normalized.append(s)
     return "\n".join(normalized)
 
@@ -34,12 +33,9 @@ def update_hosts_file(blocked_list):
             current_lines = f.readlines()
 
         # 2. TẠO NỘI DUNG MONG MUỐN
-        # Lọc giữ lại dòng hệ thống
         clean_lines = [line for line in current_lines if "DRIFTGUARD" not in line and REDIRECT_IP not in line]
         
         new_content_lines = clean_lines.copy()
-        
-        # Đảm bảo có xuống dòng giữa phần hệ thống và phần chặn
         if new_content_lines and not new_content_lines[-1].endswith('\n'):
             new_content_lines[-1] += '\n'
 
@@ -47,24 +43,19 @@ def update_hosts_file(blocked_list):
             new_content_lines.append("\n# --- DRIFTGUARD BLOCK LIST ---\n")
             for site in blocked_list:
                 site_clean = site.replace("www.", "").strip()
-                # Thêm cả www và non-www
                 new_content_lines.append(f"{REDIRECT_IP}       {site_clean}\n")
                 new_content_lines.append(f"{REDIRECT_IP}       www.{site_clean}\n")
 
-        # 3. SO SÁNH THÔNG MINH (QUAN TRỌNG NHẤT)
-        # Chuẩn hóa cả 2 bên về dạng đơn giản nhất rồi mới so sánh
+        # 3. SO SÁNH
         current_normalized = normalize_content(current_lines)
         target_normalized = normalize_content(new_content_lines)
 
         if current_normalized == target_normalized:
-            # Nếu nội dung cốt lõi giống nhau -> Bỏ qua, không ghi file nữa
             return False, None 
 
         print(f"   [NET DEBUG] Content changed. Updating...")
-        # In ra độ dài để debug nếu cần
-        # print(f"   Len Current: {len(current_normalized)} | Len Target: {len(target_normalized)}")
 
-        # 4. GHI FILE (XÓA ĐI XÂY LẠI)
+        # 4. GHI FILE
         run_command(f'attrib -r -s -h "{HOSTS_PATH}"')
         run_command(f'icacls "{HOSTS_PATH}" /grant Administrators:F /t /c /q')
 

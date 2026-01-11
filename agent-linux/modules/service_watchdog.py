@@ -1,12 +1,11 @@
 import shutil
 import subprocess
 
-# Tìm đường dẫn lệnh systemctl
+
 SYSTEMCTL_PATH = shutil.which("systemctl") or "/usr/bin/systemctl"
 
 def run_command(cmd_str):
     try:
-        # Chạy lệnh và lấy kết quả
         res = subprocess.run(cmd_str, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         return res.returncode, res.stdout.strip()
     except: 

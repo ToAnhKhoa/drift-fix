@@ -8,5 +8,5 @@ API_SECRET_KEY = "prethesis"
 SSH_CONFIG_PATH = "/etc/ssh/sshd_config"
 
 # Timers
-CHECK_INTERVAL = 10       # Linux servers are stable, 10s is enough
+CHECK_INTERVAL = 10       
 HEARTBEAT_INTERVAL = 1800

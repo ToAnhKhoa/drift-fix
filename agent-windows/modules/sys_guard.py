@@ -1,4 +1,3 @@
-# modules/sys_guard.py
 import subprocess
 import utils
 
